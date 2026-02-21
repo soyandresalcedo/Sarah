@@ -199,7 +199,7 @@
       payload.customProviderId = providerIdVal || 'azure-openai';
       payload.customProviderBaseUrl = baseUrl;
       payload.customProviderApi = apiVal || 'openai-completions';
-      payload.customProviderApiKeyEnv = apiKeyEnvVal || 'AZURE_OPENAI_API_KEY';
+      payload.customProviderApiKeyEnv = apiKeyEnvVal || 'AZURE_OPENAI_KEY';
       payload.customProviderModelId = modelIdVal || deploymentVal;
     }
 

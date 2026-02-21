@@ -1096,11 +1096,11 @@ app.post("/setup/api/run", requireSetupAuth, async (req, res) => {
 
         // Add default model if provided
         if (modelId) {
-          providerConfig.models = {
-            [modelId]: {
+          providerConfig.models = [
+            {
               id: modelId,
             },
-          };
+          ];
         }
 
         // Write provider config to models.providers.{providerId}
