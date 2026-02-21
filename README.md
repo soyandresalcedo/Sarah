@@ -152,6 +152,16 @@ Add OpenAI-compatible providers during setup:
 - Any OpenAI-compatible API endpoint
 - Support for environment variable API keys
 
+### Azure AI Foundry / Azure OpenAI ☁️
+
+The setup wizard now includes Azure helper fields that map to a custom provider:
+
+- Endpoint + deployment are converted to an OpenAI-compatible base URL
+- API version is appended as a query string
+- API key is injected via an environment variable (recommended)
+
+Set `AZURE_OPENAI_API_KEY` (or your chosen env var) in Railway, then fill the Azure section in `/setup`.
+
 ### Better Diagnostics 📊
 
 - Public `/healthz` endpoint (no auth required)
@@ -396,3 +406,4 @@ Based on [clawdbot-railway-template](https://github.com/vignesh07/clawdbot-railw
 - ✅ Comprehensive health monitoring
 - ✅ Automatic migration from legacy templates
 - ✅ Security hardening (secret redaction, path validation)
+# Sarah
