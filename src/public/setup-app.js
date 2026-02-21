@@ -172,6 +172,37 @@
       customProviderModelId: document.getElementById('customProviderModelId').value
     };
 
+    // Azure AI Foundry helper -> map to custom provider if custom provider is empty
+    var azureEndpoint = document.getElementById('azureEndpoint');
+    var azureDeployment = document.getElementById('azureDeployment');
+    var azureApiVersion = document.getElementById('azureApiVersion');
+    var azureApi = document.getElementById('azureApi');
+    var azureApiKeyEnv = document.getElementById('azureApiKeyEnv');
+    var azureProviderId = document.getElementById('azureProviderId');
+    var azureModelId = document.getElementById('azureModelId');
+
+    var endpointVal = azureEndpoint ? azureEndpoint.value.trim() : '';
+    var deploymentVal = azureDeployment ? azureDeployment.value.trim() : '';
+    var apiVersionVal = azureApiVersion ? azureApiVersion.value.trim() : '';
+    var apiVal = azureApi ? azureApi.value.trim() : '';
+    var apiKeyEnvVal = azureApiKeyEnv ? azureApiKeyEnv.value.trim() : '';
+    var providerIdVal = azureProviderId ? azureProviderId.value.trim() : '';
+    var modelIdVal = azureModelId ? azureModelId.value.trim() : '';
+
+    if (endpointVal && deploymentVal && !payload.customProviderId) {
+      var base = endpointVal.replace(/\/+$/, '');
+      var baseUrl = base + '/openai/deployments/' + encodeURIComponent(deploymentVal);
+      if (apiVersionVal) {
+        baseUrl += '?api-version=' + encodeURIComponent(apiVersionVal);
+      }
+
+      payload.customProviderId = providerIdVal || 'azure-openai';
+      payload.customProviderBaseUrl = baseUrl;
+      payload.customProviderApi = apiVal || 'openai-completions';
+      payload.customProviderApiKeyEnv = apiKeyEnvVal || 'AZURE_OPENAI_API_KEY';
+      payload.customProviderModelId = modelIdVal || deploymentVal;
+    }
+
     logEl.textContent = 'Running...\n';
 
     fetch('/setup/api/run', {

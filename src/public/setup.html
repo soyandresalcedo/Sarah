@@ -150,7 +150,7 @@
 
   <div class="card">
     <h2>2b) Advanced: Custom OpenAI-compatible provider (optional)</h2>
-    <p class="muted">Add a custom provider that uses OpenAI-compatible API (e.g., local LLM, proxy service). This provider will be merged with built-in providers.</p>
+    <p class="muted">Add a custom provider that uses an OpenAI-compatible API (e.g., local LLM, proxy service). This provider will be merged with built-in providers.</p>
 
     <label>Provider ID</label>
     <input id="customProviderId" type="text" placeholder="my-custom-provider" />
@@ -161,7 +161,7 @@
     <label>Base URL</label>
     <input id="customProviderBaseUrl" type="text" placeholder="https://api.example.com/v1" />
     <div class="muted" style="margin-top: 0.25rem">
-      Must include <code>/v1</code> suffix for OpenAI compatibility (e.g., "http://localhost:11434/v1").
+      Use the provider's OpenAI-compatible base URL (e.g., "http://localhost:11434/v1" or Azure deployment URL).
     </div>
 
     <label>API Type</label>
@@ -182,6 +182,45 @@
     <div class="muted" style="margin-top: 0.25rem">
       Default model to use with this provider (e.g., "llama3.2", "gpt-4"). Can be overridden later.
     </div>
+  </div>
+
+  <div class="card">
+    <h2>2c) Azure AI Foundry / Azure OpenAI (optional)</h2>
+    <p class="muted">Convenience fields to configure Azure OpenAI-style deployments via the custom provider above.</p>
+
+    <label>Azure endpoint</label>
+    <input id="azureEndpoint" type="text" placeholder="https://YOUR_RESOURCE.openai.azure.com" />
+    <div class="muted" style="margin-top: 0.25rem">
+      Use the endpoint shown in Azure AI Foundry (ai.azure.com). No trailing slash.
+    </div>
+
+    <label>Deployment name</label>
+    <input id="azureDeployment" type="text" placeholder="gpt-4o-mini" />
+    <div class="muted" style="margin-top: 0.25rem">
+      This maps to your Azure deployment (not the model name).
+    </div>
+
+    <label>API version (optional)</label>
+    <input id="azureApiVersion" type="text" placeholder="2024-02-15-preview" />
+
+    <label>API type</label>
+    <select id="azureApi">
+      <option value="">-- Select API type --</option>
+      <option value="openai-completions">openai-completions</option>
+      <option value="openai-responses">openai-responses</option>
+    </select>
+
+    <label>API Key Environment Variable (optional)</label>
+    <input id="azureApiKeyEnv" type="text" placeholder="AZURE_OPENAI_API_KEY" />
+    <div class="muted" style="margin-top: 0.25rem">
+      Set this env var in Railway so the wrapper can inject your Azure API key.
+    </div>
+
+    <label>Provider ID (optional)</label>
+    <input id="azureProviderId" type="text" placeholder="azure-openai" />
+
+    <label>Model ID (optional)</label>
+    <input id="azureModelId" type="text" placeholder="gpt-4o-mini" />
   </div>
 
   <div class="card">
