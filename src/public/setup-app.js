@@ -169,7 +169,15 @@
       customProviderBaseUrl: document.getElementById('customProviderBaseUrl').value,
       customProviderApi: document.getElementById('customProviderApi').value,
       customProviderApiKeyEnv: document.getElementById('customProviderApiKeyEnv').value,
-      customProviderModelId: document.getElementById('customProviderModelId').value
+      customProviderModelId: document.getElementById('customProviderModelId').value,
+      // Azure fields (optional)
+      azureEndpoint: document.getElementById('azureEndpoint').value,
+      azureDeployment: document.getElementById('azureDeployment').value,
+      azureApiVersion: document.getElementById('azureApiVersion').value,
+      azureApi: document.getElementById('azureApi').value,
+      azureApiKeyEnv: document.getElementById('azureApiKeyEnv').value,
+      azureProviderId: document.getElementById('azureProviderId').value,
+      azureModelId: document.getElementById('azureModelId').value
     };
 
     // Azure AI Foundry helper -> map to custom provider if custom provider is empty

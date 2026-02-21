@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { Readable } from "node:stream";
 
 import express from "express";
 import httpProxy from "http-proxy";
@@ -43,6 +44,7 @@ const STATE_DIR =
 const WORKSPACE_DIR =
   process.env.OPENCLAW_WORKSPACE_DIR?.trim() ||
   path.join(STATE_DIR, "workspace");
+const AZURE_CONFIG_PATH = path.join(STATE_DIR, "azure-openai.json");
 
 // Protect /setup with a user-provided password.
 const SETUP_PASSWORD = process.env.SETUP_PASSWORD?.trim();
@@ -51,6 +53,57 @@ const SETUP_PASSWORD = process.env.SETUP_PASSWORD?.trim();
 const DEBUG = process.env.OPENCLAW_TEMPLATE_DEBUG?.toLowerCase() === "true";
 function debug(...args) {
   if (DEBUG) console.log(...args);
+}
+
+function readAzureConfig() {
+  let fileConfig = null;
+  try {
+    const raw = fs.readFileSync(AZURE_CONFIG_PATH, "utf8");
+    fileConfig = JSON.parse(raw);
+  } catch {
+    fileConfig = null;
+  }
+
+  const endpoint =
+    process.env.AZURE_OPENAI_ENDPOINT?.trim() ||
+    fileConfig?.endpoint?.trim();
+  const deployment =
+    process.env.AZURE_OPENAI_DEPLOYMENT?.trim() ||
+    fileConfig?.deployment?.trim();
+  const apiVersion =
+    process.env.AZURE_OPENAI_API_VERSION?.trim() ||
+    fileConfig?.apiVersion?.trim() ||
+    "2024-12-01-preview";
+  const apiKeyEnv =
+    process.env.AZURE_OPENAI_KEY
+      ? "AZURE_OPENAI_KEY"
+      : process.env.AZURE_OPENAI_API_KEY
+        ? "AZURE_OPENAI_API_KEY"
+        : fileConfig?.apiKeyEnv?.trim() || "AZURE_OPENAI_KEY";
+  const apiKey = process.env[apiKeyEnv]?.trim();
+
+  if (!endpoint || !deployment) {
+    return {
+      ok: false,
+      error:
+        "Missing Azure config. Set AZURE_OPENAI_ENDPOINT and AZURE_OPENAI_DEPLOYMENT or run setup.",
+    };
+  }
+  if (!apiKey) {
+    return {
+      ok: false,
+      error: `Missing Azure API key env var: ${apiKeyEnv}`,
+    };
+  }
+
+  return {
+    ok: true,
+    endpoint: endpoint.replace(/\/+$/, ""),
+    deployment,
+    apiVersion,
+    apiKey,
+    apiKeyEnv,
+  };
 }
 
 // Gateway admin token (protects Openclaw gateway + Control UI).
@@ -675,6 +728,81 @@ app.get("/healthz", async (_req, res) => {
   });
 });
 
+// Azure OpenAI proxy for OpenAI-compatible providers
+app.post("/_azure_openai/v1/chat/completions", async (req, res) => {
+  const azure = readAzureConfig();
+  if (!azure.ok) {
+    return res.status(500).json({ error: { message: azure.error } });
+  }
+
+  const targetUrl = `${azure.endpoint}/openai/deployments/${encodeURIComponent(
+    azure.deployment,
+  )}/chat/completions?api-version=${encodeURIComponent(azure.apiVersion)}`;
+
+  try {
+    const upstream = await fetch(targetUrl, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "api-key": azure.apiKey,
+      },
+      body: JSON.stringify(req.body ?? {}),
+    });
+
+    res.status(upstream.status);
+    upstream.headers.forEach((value, key) => {
+      if (key.toLowerCase() === "transfer-encoding") return;
+      res.setHeader(key, value);
+    });
+
+    if (!upstream.body) {
+      return res.end();
+    }
+
+    return Readable.fromWeb(upstream.body).pipe(res);
+  } catch (err) {
+    console.error(`[azure-proxy] Failed request: ${err.message}`);
+    return res.status(502).json({ error: { message: "Azure proxy failed" } });
+  }
+});
+
+app.post("/_azure_openai/v1/responses", async (req, res) => {
+  const azure = readAzureConfig();
+  if (!azure.ok) {
+    return res.status(500).json({ error: { message: azure.error } });
+  }
+
+  const targetUrl = `${azure.endpoint}/openai/deployments/${encodeURIComponent(
+    azure.deployment,
+  )}/responses?api-version=${encodeURIComponent(azure.apiVersion)}`;
+
+  try {
+    const upstream = await fetch(targetUrl, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "api-key": azure.apiKey,
+      },
+      body: JSON.stringify(req.body ?? {}),
+    });
+
+    res.status(upstream.status);
+    upstream.headers.forEach((value, key) => {
+      if (key.toLowerCase() === "transfer-encoding") return;
+      res.setHeader(key, value);
+    });
+
+    if (!upstream.body) {
+      return res.end();
+    }
+
+    return Readable.fromWeb(upstream.body).pipe(res);
+  } catch (err) {
+    console.error(`[azure-proxy] Failed responses request: ${err.message}`);
+    return res.status(502).json({ error: { message: "Azure proxy failed" } });
+  }
+});
+
 // Serve static files for setup wizard
 app.get("/setup/app.js", requireSetupAuth, (_req, res) => {
   res.type("application/javascript");
@@ -1041,10 +1169,58 @@ app.post("/setup/api/run", requireSetupAuth, async (req, res) => {
       }
 
       // ========== CUSTOM PROVIDER CONFIGURATION ==========
+      // Persist Azure config if provided
+      const azureEndpoint = payload.azureEndpoint?.trim();
+      const azureDeployment = payload.azureDeployment?.trim();
+      const azureApiVersion = payload.azureApiVersion?.trim();
+      const azureApiKeyEnv = payload.azureApiKeyEnv?.trim();
+      const azureApi = payload.azureApi?.trim();
+      const azureProviderId = payload.azureProviderId?.trim();
+      const azureModelId = payload.azureModelId?.trim();
+
+      if (azureEndpoint && azureDeployment) {
+        if (!/^https?:\/\/.+/.test(azureEndpoint)) {
+          throw new Error(
+            `Invalid Azure endpoint "${azureEndpoint}". Must start with http:// or https://.`
+          );
+        }
+        if (azureApiKeyEnv && !/^[A-Z_][A-Z0-9_]*$/.test(azureApiKeyEnv)) {
+          throw new Error(
+            `Invalid Azure API key env var name "${azureApiKeyEnv}". Must be uppercase with underscores.`
+          );
+        }
+
+        const azureConfig = {
+          endpoint: azureEndpoint.replace(/\/+$/, ""),
+          deployment: azureDeployment,
+          apiVersion: azureApiVersion || "2024-12-01-preview",
+          apiKeyEnv: azureApiKeyEnv || "AZURE_OPENAI_KEY",
+        };
+
+        fs.mkdirSync(STATE_DIR, { recursive: true });
+        fs.writeFileSync(
+          AZURE_CONFIG_PATH,
+          JSON.stringify(azureConfig, null, 2),
+          { encoding: "utf8", mode: 0o600 },
+        );
+        console.log(`[azure] Saved Azure config to ${AZURE_CONFIG_PATH}`);
+
+        // Default custom provider values for Azure if not set
+        if (!payload.customProviderId) {
+          payload.customProviderId = azureProviderId || "azure-openai";
+        }
+        if (!payload.customProviderApi) {
+          payload.customProviderApi = azureApi || "openai-completions";
+        }
+        if (!payload.customProviderModelId) {
+          payload.customProviderModelId = azureModelId || azureDeployment;
+        }
+      }
+
       // Add custom OpenAI-compatible provider if provided
       if (payload.customProviderId?.trim()) {
         const providerId = payload.customProviderId.trim();
-        const baseUrl = payload.customProviderBaseUrl?.trim();
+        let baseUrl = payload.customProviderBaseUrl?.trim();
         const api = payload.customProviderApi?.trim();
         const apiKeyEnv = payload.customProviderApiKeyEnv?.trim();
         const modelId = payload.customProviderModelId?.trim();
@@ -1054,6 +1230,11 @@ app.post("/setup/api/run", requireSetupAuth, async (req, res) => {
           throw new Error(
             `Invalid custom provider ID "${providerId}". Must contain only alphanumeric characters, underscores, and dashes.`
           );
+        }
+
+        // Override base URL for Azure to a local proxy that maps to Azure endpoints
+        if (azureEndpoint && azureDeployment) {
+          baseUrl = `http://127.0.0.1:${PORT}/_azure_openai/v1`;
         }
 
         // Validation: Base URL (must start with http:// or https://)
