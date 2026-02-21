@@ -407,3 +407,4 @@ Based on [clawdbot-railway-template](https://github.com/vignesh07/clawdbot-railw
 - ✅ Automatic migration from legacy templates
 - ✅ Security hardening (secret redaction, path validation)
 # Sarah
+# Sarah
