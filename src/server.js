@@ -44,7 +44,12 @@ const STATE_DIR =
 const WORKSPACE_DIR =
   process.env.OPENCLAW_WORKSPACE_DIR?.trim() ||
   path.join(STATE_DIR, "workspace");
+const WORKSPACE_SEED_DIR = path.join(process.cwd(), "workspace");
 const AZURE_CONFIG_PATH = path.join(STATE_DIR, "azure-openai.json");
+
+process.env.OPENCLAW_STATE_DIR = process.env.OPENCLAW_STATE_DIR?.trim() || STATE_DIR;
+process.env.OPENCLAW_WORKSPACE_DIR =
+  process.env.OPENCLAW_WORKSPACE_DIR?.trim() || WORKSPACE_DIR;
 
 // Protect /setup with a user-provided password.
 const SETUP_PASSWORD = process.env.SETUP_PASSWORD?.trim();
@@ -54,6 +59,63 @@ const DEBUG = process.env.OPENCLAW_TEMPLATE_DEBUG?.toLowerCase() === "true";
 function debug(...args) {
   if (DEBUG) console.log(...args);
 }
+
+function seedWorkspaceFromRepo() {
+  try {
+    if (!fs.existsSync(WORKSPACE_SEED_DIR)) return;
+    fs.mkdirSync(WORKSPACE_DIR, { recursive: true });
+    const copyMissingRecursive = (srcDir, destDir) => {
+      if (!fs.existsSync(srcDir)) return;
+      fs.mkdirSync(destDir, { recursive: true });
+      const entries = fs.readdirSync(srcDir, { withFileTypes: true });
+      for (const entry of entries) {
+        const srcPath = path.join(srcDir, entry.name);
+        const destPath = path.join(destDir, entry.name);
+        if (entry.isDirectory()) {
+          copyMissingRecursive(srcPath, destPath);
+          continue;
+        }
+        if (fs.existsSync(destPath)) continue;
+        fs.copyFileSync(srcPath, destPath, fs.constants.COPYFILE_EXCL);
+      }
+    };
+    const seedItems = [
+      "skills",
+      "ghost",
+      "research",
+      "ghost-post.js",
+      "ghost-analysis.js",
+      "AGENTS.md",
+      "SOUL.md",
+      "USER.md",
+      "TOOLS.md",
+      "IDENTITY.md",
+      "HEARTBEAT.md",
+      "BOOTSTRAP.md",
+    ];
+    for (const item of seedItems) {
+      const src = path.join(WORKSPACE_SEED_DIR, item);
+      const dest = path.join(WORKSPACE_DIR, item);
+      if (!fs.existsSync(src)) continue;
+      if (fs.existsSync(dest)) continue;
+      const stat = fs.statSync(src);
+      if (stat.isDirectory()) {
+        if (fs.existsSync(dest)) {
+          copyMissingRecursive(src, dest);
+        } else {
+          fs.cpSync(src, dest, { recursive: true, force: false });
+        }
+      } else {
+        fs.copyFileSync(src, dest, fs.constants.COPYFILE_EXCL);
+      }
+      debug(`[workspace] seeded ${item}`);
+    }
+  } catch (err) {
+    console.warn(`[workspace] seed failed: ${err.message}`);
+  }
+}
+
+seedWorkspaceFromRepo();
 
 function readAzureConfig() {
   let fileConfig = null;
