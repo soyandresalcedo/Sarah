@@ -555,6 +555,37 @@ function seedWorkspaceFromRepo() {
 
 seedWorkspaceFromRepo();
 
+// Sync relevant API keys from system env into workspace .env files
+// so agent scripts (serper-search.js, seo-gsc.js, ghost-post.js) can find them
+(function syncEnvToWorkspaces() {
+  const ENV_KEYS = [
+    "SERPER_API_KEY",
+    "GHOST_API_URL", "GHOST_ADMIN_API_KEY", "GHOST_CONTENT_API_KEY",
+    "OPENCLAW_SEO_API_KEY", "OPENCLAW_SEO_API_BASE", "OPENCLAW_GSC_SITE_URL",
+  ];
+  const lines = [];
+  for (const k of ENV_KEYS) {
+    const v = process.env[k]?.trim();
+    if (v) lines.push(`${k}=${v}`);
+  }
+  if (lines.length === 0) return;
+  const content = lines.join("\n") + "\n";
+  const dirs = [WORKSPACE_DIR];
+  for (const sub of ["research", "ghost"]) {
+    const d = path.join(WORKSPACE_DIR, sub);
+    if (fs.existsSync(d)) dirs.push(d);
+  }
+  for (const dir of dirs) {
+    try {
+      const envPath = path.join(dir, ".env");
+      fs.writeFileSync(envPath, content, { encoding: "utf8", mode: 0o600 });
+    } catch (err) {
+      console.warn(`[env-sync] failed for ${dir}: ${err.message}`);
+    }
+  }
+  console.log(`[env-sync] wrote ${lines.length} keys to .env in ${dirs.length} workspaces`);
+})();
+
 // Seed cron jobs from repo — overwrite if volume has legacy jobs
 (function seedCronJobs() {
   try {
