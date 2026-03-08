@@ -25,7 +25,16 @@ async function main() {
     throw new Error("Falta OPENCLAW_SEO_API_KEY");
   }
 
-  const endpoint = (getArg("--endpoint") || DEFAULT_ENDPOINT).trim();
+  const dimensions = (getArg("--dimensions") || "").trim();
+  const searchType = (getArg("--searchType") || "").trim();
+  const filterDimension = (getArg("--filterDimension") || "").trim();
+  const filterOperator = (getArg("--filterOperator") || "").trim();
+  const filterExpression = (getArg("--filterExpression") || "").trim();
+
+  const endpoint = dimensions
+    ? "explore"
+    : (getArg("--endpoint") || DEFAULT_ENDPOINT).trim();
+
   const siteUrl = (getArg("--siteUrl") || process.env.OPENCLAW_GSC_SITE_URL || "").trim();
   const days = (getArg("--days") || "").trim();
   const compare = (getArg("--compare") || "").trim();
@@ -43,6 +52,11 @@ async function main() {
   if (endDate) url.searchParams.set("endDate", endDate);
   if (rowLimit) url.searchParams.set("rowLimit", rowLimit);
   if (startRow) url.searchParams.set("startRow", startRow);
+  if (dimensions) url.searchParams.set("dimensions", dimensions);
+  if (searchType) url.searchParams.set("searchType", searchType);
+  if (filterDimension) url.searchParams.set("filterDimension", filterDimension);
+  if (filterOperator) url.searchParams.set("filterOperator", filterOperator);
+  if (filterExpression) url.searchParams.set("filterExpression", filterExpression);
   if (includeInsights !== null) {
     url.searchParams.set("includeInsights", String(includeInsights));
   }

@@ -1524,6 +1524,81 @@ app.get("/api/seo/gsc/summary", requireSeoAuth, async (req, res) => {
   }
 });
 
+const VALID_GSC_DIMENSIONS = new Set([
+  "query", "page", "country", "device", "date", "searchAppearance",
+]);
+const VALID_FILTER_OPERATORS = new Set([
+  "equals", "notEquals", "contains", "notContains",
+  "includingRegex", "excludingRegex",
+]);
+
+app.get("/api/seo/gsc/explore", requireSeoAuth, async (req, res) => {
+  try {
+    const dimRaw = req.query.dimensions?.toString().trim();
+    if (!dimRaw) {
+      return res.status(400).json({ ok: false, error: "Missing dimensions param (e.g. dimensions=query,country)" });
+    }
+    const dimensions = dimRaw.split(",").map((d) => d.trim()).filter(Boolean);
+    for (const d of dimensions) {
+      if (!VALID_GSC_DIMENSIONS.has(d)) {
+        return res.status(400).json({ ok: false, error: `Invalid dimension: ${d}. Valid: ${[...VALID_GSC_DIMENSIONS].join(", ")}` });
+      }
+    }
+
+    let dimensionFilterGroups;
+    const filterDim = req.query.filterDimension?.toString().trim();
+    const filterOp = req.query.filterOperator?.toString().trim() || "equals";
+    const filterExpr = req.query.filterExpression?.toString().trim();
+    if (filterDim && filterExpr) {
+      if (!VALID_GSC_DIMENSIONS.has(filterDim)) {
+        return res.status(400).json({ ok: false, error: `Invalid filterDimension: ${filterDim}` });
+      }
+      if (!VALID_FILTER_OPERATORS.has(filterOp)) {
+        return res.status(400).json({ ok: false, error: `Invalid filterOperator: ${filterOp}. Valid: ${[...VALID_FILTER_OPERATORS].join(", ")}` });
+      }
+      dimensionFilterGroups = [{
+        filters: [{ dimension: filterDim, operator: filterOp, expression: filterExpr }],
+      }];
+    }
+
+    const { startDate, endDate } = parseDateRange(req.query);
+    const params = {
+      siteUrl: resolveSiteUrl(req),
+      startDate,
+      endDate,
+      searchType: req.query.searchType?.toString().trim() || "web",
+      dataState: req.query.dataState?.toString().trim() || undefined,
+      aggregationType: req.query.aggregationType?.toString().trim() || undefined,
+      rowLimit: parsePositiveInt(req.query.rowLimit, 500),
+      startRow: parseOptionalInt(req.query.startRow),
+      dimensions,
+      dimensionFilterGroups,
+    };
+    if (!params.siteUrl) {
+      return res.status(400).json({ ok: false, error: "Missing siteUrl" });
+    }
+
+    const includeInsights = req.query.includeInsights?.toString() !== "false";
+    const cacheKey = stableStringify({ route: "gsc-explore", params, includeInsights });
+    const { payload, cache } = await withCache(cacheKey, SEO_CACHE_TTL_MS, async () => {
+      const { rows } = await fetchGscRows(params);
+      return {
+        siteUrl: params.siteUrl,
+        dateRange: { startDate: params.startDate, endDate: params.endDate },
+        dimensions: params.dimensions,
+        filter: dimensionFilterGroups?.[0]?.filters?.[0] || null,
+        rows,
+        summary: summarizeRows(rows),
+        insights: includeInsights ? buildInsights(rows) : null,
+      };
+    });
+    return res.json({ ok: true, source: "gsc", cache, ...payload });
+  } catch (err) {
+    console.error(`[gsc] explore error: ${err.message}`);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 // Azure OpenAI proxy for OpenAI-compatible providers
 app.post("/_azure_openai/v1/chat/completions", async (req, res) => {
   const azure = readAzureConfig();
