@@ -481,6 +481,7 @@ function seedWorkspaceFromRepo() {
       "ghost-post.js",
       "ghost-analysis.js",
       "seo-gsc.js",
+      "serper-search.js",
       "AGENTS.md",
       "SOUL.md",
       "USER.md",
@@ -510,29 +511,37 @@ function seedWorkspaceFromRepo() {
     console.warn(`[workspace] seed failed: ${err.message}`);
   }
 
-  // Ensure memory/ and daily files exist (agent reads memory/YYYY-MM-DD.md every session)
+  // Ensure memory/, WORKFLOW_AUTO.md, MEMORY.md exist in main + sub-agent workspaces
   const created = [];
+  const workspaceDirs = [WORKSPACE_DIR];
+  for (const sub of ["research", "ghost"]) {
+    const subDir = path.join(WORKSPACE_DIR, sub);
+    if (fs.existsSync(subDir)) workspaceDirs.push(subDir);
+  }
   try {
-    const memoryDir = path.join(WORKSPACE_DIR, "memory");
-    fs.mkdirSync(memoryDir, { recursive: true });
     const today = new Date().toISOString().slice(0, 10);
     const yesterday = new Date(Date.now() - 864e5).toISOString().slice(0, 10);
-    for (const d of [today, yesterday]) {
-      const f = path.join(memoryDir, `${d}.md`);
-      if (!fs.existsSync(f)) {
-        fs.writeFileSync(f, `# ${d}\n\n`, "utf8");
-        created.push(`memory/${d}.md`);
+    for (const wsDir of workspaceDirs) {
+      const label = wsDir === WORKSPACE_DIR ? "" : `${path.basename(wsDir)}/`;
+      const memoryDir = path.join(wsDir, "memory");
+      fs.mkdirSync(memoryDir, { recursive: true });
+      for (const d of [today, yesterday]) {
+        const f = path.join(memoryDir, `${d}.md`);
+        if (!fs.existsSync(f)) {
+          fs.writeFileSync(f, `# ${d}\n\n`, "utf8");
+          created.push(`${label}memory/${d}.md`);
+        }
       }
-    }
-    const workflowAuto = path.join(WORKSPACE_DIR, "WORKFLOW_AUTO.md");
-    if (!fs.existsSync(workflowAuto)) {
-      fs.writeFileSync(workflowAuto, "# Workflow auto\n\n", "utf8");
-      created.push("WORKFLOW_AUTO.md");
-    }
-    const memoryMd = path.join(WORKSPACE_DIR, "MEMORY.md");
-    if (!fs.existsSync(memoryMd)) {
-      fs.writeFileSync(memoryMd, "# Long-term memory\n\n", "utf8");
-      created.push("MEMORY.md");
+      const workflowAuto = path.join(wsDir, "WORKFLOW_AUTO.md");
+      if (!fs.existsSync(workflowAuto)) {
+        fs.writeFileSync(workflowAuto, "# Workflow auto\n\n", "utf8");
+        created.push(`${label}WORKFLOW_AUTO.md`);
+      }
+      const memoryMd = path.join(wsDir, "MEMORY.md");
+      if (!fs.existsSync(memoryMd)) {
+        fs.writeFileSync(memoryMd, "# Long-term memory\n\n", "utf8");
+        created.push(`${label}MEMORY.md`);
+      }
     }
     if (created.length > 0) {
       console.log(`[workspace] created: ${created.join(", ")}`);
@@ -545,6 +554,25 @@ function seedWorkspaceFromRepo() {
 }
 
 seedWorkspaceFromRepo();
+
+// Seed cron jobs from repo if not already present on volume
+(function seedCronJobs() {
+  try {
+    const srcCron = path.join(process.cwd(), ".openclaw", "cron", "jobs.json");
+    if (!fs.existsSync(srcCron)) return;
+    const destCronDir = path.join(STATE_DIR, "cron");
+    const destCron = path.join(destCronDir, "jobs.json");
+    if (fs.existsSync(destCron)) {
+      console.log("[cron] seed skipped: jobs.json already exists on volume");
+      return;
+    }
+    fs.mkdirSync(destCronDir, { recursive: true });
+    fs.copyFileSync(srcCron, destCron);
+    console.log("[cron] seeded jobs.json from repo");
+  } catch (err) {
+    console.warn(`[cron] seed failed: ${err.message}`);
+  }
+})();
 
 function readAzureConfig() {
   let fileConfig = null;
