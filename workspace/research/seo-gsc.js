@@ -1,4 +1,20 @@
 #!/usr/bin/env node
+import { readFileSync } from "node:fs";
+
+// Load .env fallback (same pattern as ghost-post.js)
+try {
+  const envRaw = readFileSync(new URL("./.env", import.meta.url), "utf8");
+  for (const line of envRaw.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eq = trimmed.indexOf("=");
+    if (eq < 1) continue;
+    const k = trimmed.slice(0, eq).trim();
+    const v = trimmed.slice(eq + 1).trim().replace(/^"|"$/g, "");
+    if (!process.env[k]) process.env[k] = v;
+  }
+} catch { /* no .env file, rely on system env */ }
+
 const DEFAULT_API_BASE = "http://localhost:8080";
 const DEFAULT_ENDPOINT = "summary";
 

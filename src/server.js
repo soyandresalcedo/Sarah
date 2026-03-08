@@ -555,20 +555,37 @@ function seedWorkspaceFromRepo() {
 
 seedWorkspaceFromRepo();
 
-// Seed cron jobs from repo if not already present on volume
+// Seed cron jobs from repo — overwrite if volume has legacy jobs
 (function seedCronJobs() {
   try {
     const srcCron = path.join(process.cwd(), ".openclaw", "cron", "jobs.json");
     if (!fs.existsSync(srcCron)) return;
     const destCronDir = path.join(STATE_DIR, "cron");
     const destCron = path.join(destCronDir, "jobs.json");
-    if (fs.existsSync(destCron)) {
-      console.log("[cron] seed skipped: jobs.json already exists on volume");
-      return;
-    }
     fs.mkdirSync(destCronDir, { recursive: true });
+    if (fs.existsSync(destCron)) {
+      try {
+        const existing = JSON.parse(fs.readFileSync(destCron, "utf8"));
+        const legacyNames = new Set([
+          "ghost-news-daily", "ghost-post-10am", "ghost-post-2pm",
+          "ghost-post-2pm-test", "ghost-post-2pm-test-retry",
+          "ghost-post-2pm-test-safe", "ghost-post-2pm-test-debug", "ghost-post-6pm",
+        ]);
+        const hasLegacy = existing?.jobs?.some((j) => legacyNames.has(j.name));
+        if (!hasLegacy) {
+          console.log("[cron] seed skipped: jobs.json already up to date");
+          return;
+        }
+        const bak = `${destCron}.bak-${new Date().toISOString().replace(/[:.]/g, "-")}`;
+        fs.copyFileSync(destCron, bak);
+        console.log(`[cron] backed up legacy jobs to ${path.basename(bak)}`);
+      } catch {
+        console.log("[cron] seed skipped: existing jobs.json could not be parsed");
+        return;
+      }
+    }
     fs.copyFileSync(srcCron, destCron);
-    console.log("[cron] seeded jobs.json from repo");
+    console.log("[cron] seeded jobs.json from repo (replaced legacy jobs)");
   } catch (err) {
     console.warn(`[cron] seed failed: ${err.message}`);
   }
