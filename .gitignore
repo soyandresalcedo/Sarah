@@ -18,3 +18,37 @@ npm-debug.log*
 .serena/
 .tmpdata/
 .tmp/
+
+# Agent sessions, auth, and models (contain API keys)
+.openclaw/agents/*/sessions/
+.openclaw/agents/*/agent/auth.json
+.openclaw/agents/*/agent/models.json
+.openclaw/memory/
+
+# Openclaw runtime state and secrets
+.openclaw/gateway.token
+.openclaw/openclaw.json
+.openclaw/openclaw.json.bak*
+.openclaw/identity/
+.openclaw/devices/
+.openclaw/delivery-queue/
+.openclaw/cron/runs/
+.openclaw/cron/*.bak
+.openclaw/logs/
+.openclaw/media/
+.openclaw/seo-cache/
+.openclaw/telegram/
+.openclaw/subagents/
+.openclaw/update-check.json
+.openclaw/azure-openai.json
+.openclaw/canvas/
+
+# Workspace state and temp files
+**/.openclaw/workspace-state.json
+**/ghost-draft.html
+**/ghost_draft*.md
+**/ghost-config.json
+**/tmp-*.html
+
+# Cursor workspace plans
+.cursor/plans/

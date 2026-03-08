@@ -173,6 +173,8 @@
       // Azure fields (optional)
       azureEndpoint: document.getElementById('azureEndpoint').value,
       azureDeployment: document.getElementById('azureDeployment').value,
+      azureEmbeddingDeployment: document.getElementById('azureEmbeddingDeployment')?.value || '',
+      azureEmbeddingApiKeyEnv: document.getElementById('azureEmbeddingApiKeyEnv')?.value || '',
       azureApiVersion: document.getElementById('azureApiVersion').value,
       azureApi: document.getElementById('azureApi').value,
       azureApiKeyEnv: document.getElementById('azureApiKeyEnv').value,

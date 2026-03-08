@@ -97,6 +97,9 @@ RUN printf '%s\n' '#!/usr/bin/env bash' 'exec node /openclaw/dist/entry.js "$@"'
 
 COPY src ./src
 
+# Include workspace (skills, research, ghost, etc.) for seeding into volume
+COPY workspace ./workspace
+
 ENV PORT=8080
 EXPOSE 8080
 CMD ["node", "src/server.js"]

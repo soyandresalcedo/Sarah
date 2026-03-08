@@ -1,0 +1,6 @@
+# Don't bake secrets into the image
+workspace/.env
+.env
+
+# Nested git (if workspace is a submodule)
+workspace/.git

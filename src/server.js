@@ -56,13 +56,407 @@ const SETUP_PASSWORD = process.env.SETUP_PASSWORD?.trim();
 
 // Debug logging helper
 const DEBUG = process.env.OPENCLAW_TEMPLATE_DEBUG?.toLowerCase() === "true";
+const PROXY_DEBUG = process.env.OPENCLAW_PROXY_DEBUG?.toLowerCase() === "true";
 function debug(...args) {
   if (DEBUG) console.log(...args);
+}
+/** Safe logging for URLs that may contain token (redacts token value). */
+function redactTokenInUrl(url) {
+  if (!url) return url;
+  return String(url).replace(/([?&]token=)[^&]*/g, "$1***");
+}
+
+// ========== SEO / GSC INTEGRATION ==========
+const SEO_API_KEY = process.env.OPENCLAW_SEO_API_KEY?.trim();
+const SEO_ALLOW_SETUP_AUTH =
+  process.env.OPENCLAW_SEO_ALLOW_SETUP_AUTH?.toLowerCase() === "true";
+const SEO_CACHE_DIR =
+  process.env.OPENCLAW_SEO_CACHE_DIR?.trim() || path.join(STATE_DIR, "seo-cache");
+const SEO_CACHE_TTL_MS_RAW = Number.parseInt(
+  process.env.OPENCLAW_SEO_CACHE_TTL_MS || "900000",
+  10,
+);
+const SEO_CACHE_TTL_MS =
+  Number.isFinite(SEO_CACHE_TTL_MS_RAW) && SEO_CACHE_TTL_MS_RAW > 0
+    ? SEO_CACHE_TTL_MS_RAW
+    : 15 * 60 * 1000;
+const SEO_CACHE_WARM_INTERVAL_MINUTES_RAW = Number.parseInt(
+  process.env.OPENCLAW_SEO_CACHE_WARM_INTERVAL_MINUTES || "0",
+  10,
+);
+const SEO_CACHE_WARM_INTERVAL_MINUTES =
+  Number.isFinite(SEO_CACHE_WARM_INTERVAL_MINUTES_RAW) &&
+  SEO_CACHE_WARM_INTERVAL_MINUTES_RAW > 0
+    ? SEO_CACHE_WARM_INTERVAL_MINUTES_RAW
+    : 0;
+const SEO_CACHE_WARM_INCLUDE_COMPARE =
+  process.env.OPENCLAW_SEO_CACHE_WARM_COMPARE?.toLowerCase() === "true";
+
+const GSC_DEFAULT_SITE = process.env.OPENCLAW_GSC_SITE_URL?.trim();
+const GSC_DEFAULT_DAYS_RAW = Number.parseInt(
+  process.env.OPENCLAW_GSC_DEFAULT_DAYS || "28",
+  10,
+);
+const GSC_DEFAULT_DAYS =
+  Number.isFinite(GSC_DEFAULT_DAYS_RAW) && GSC_DEFAULT_DAYS_RAW > 0
+    ? GSC_DEFAULT_DAYS_RAW
+    : 28;
+const GSC_SCOPE =
+  process.env.OPENCLAW_GSC_SCOPE?.trim() ||
+  "https://www.googleapis.com/auth/webmasters.readonly";
+const GSC_ACCESS_TOKEN = process.env.OPENCLAW_GSC_ACCESS_TOKEN?.trim();
+const GSC_SERVICE_ACCOUNT_JSON = process.env.OPENCLAW_GSC_SERVICE_ACCOUNT_JSON;
+const GSC_SERVICE_ACCOUNT_PATH = process.env.OPENCLAW_GSC_SERVICE_ACCOUNT_PATH;
+const GSC_OAUTH_CLIENT_ID = process.env.OPENCLAW_GSC_OAUTH_CLIENT_ID?.trim();
+const GSC_OAUTH_CLIENT_SECRET = process.env.OPENCLAW_GSC_OAUTH_CLIENT_SECRET?.trim();
+const GSC_REFRESH_TOKEN = process.env.OPENCLAW_GSC_REFRESH_TOKEN?.trim();
+
+const gscTokenCache = {
+  token: null,
+  expiresAt: 0,
+  source: null,
+};
+
+function ensureSeoCacheDir() {
+  try {
+    fs.mkdirSync(SEO_CACHE_DIR, { recursive: true, mode: 0o700 });
+  } catch (err) {
+    console.warn(`[seo-cache] Failed to create cache dir: ${err.message}`);
+  }
+}
+
+function base64UrlEncode(input) {
+  return Buffer.from(input)
+    .toString("base64")
+    .replace(/=/g, "")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_");
+}
+
+function stableStringify(value) {
+  if (value === null || typeof value !== "object") {
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableStringify(item)).join(",")}]`;
+  }
+  const keys = Object.keys(value).sort();
+  return `{${keys
+    .map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`)
+    .join(",")}}`;
+}
+
+function getCachePath(key) {
+  const hash = crypto.createHash("sha256").update(key).digest("hex");
+  return path.join(SEO_CACHE_DIR, `${hash}.json`);
+}
+
+function readCache(key) {
+  try {
+    const cachePath = getCachePath(key);
+    const raw = fs.readFileSync(cachePath, "utf8");
+    const parsed = JSON.parse(raw);
+    if (!parsed?.cachedAt || !parsed?.ttlMs) return null;
+    if (Date.now() - parsed.cachedAt > parsed.ttlMs) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writeCache(key, payload, ttlMs) {
+  try {
+    ensureSeoCacheDir();
+    const cachePath = getCachePath(key);
+    const data = JSON.stringify({
+      cachedAt: Date.now(),
+      ttlMs,
+      payload,
+    });
+    fs.writeFileSync(cachePath, data, { encoding: "utf8", mode: 0o600 });
+  } catch (err) {
+    console.warn(`[seo-cache] Failed to write cache: ${err.message}`);
+  }
+}
+
+async function withCache(key, ttlMs, fetcher) {
+  const cached = readCache(key);
+  if (cached) {
+    return { payload: cached.payload, cache: { hit: true, cachedAt: cached.cachedAt, ttlMs: cached.ttlMs } };
+  }
+  const payload = await fetcher();
+  writeCache(key, payload, ttlMs);
+  return { payload, cache: { hit: false, cachedAt: Date.now(), ttlMs } };
+}
+
+function parseDateInput(value) {
+  const str = (value || "").trim();
+  if (!str) return null;
+  const date = new Date(`${str}T00:00:00Z`);
+  if (Number.isNaN(date.valueOf())) return null;
+  return date;
+}
+
+function toIsoDate(date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function parseDateRange(query) {
+  const startRaw = query.startDate;
+  const endRaw = query.endDate;
+  const daysRaw = query.days;
+  const start = parseDateInput(startRaw);
+  const end = parseDateInput(endRaw);
+  if (start && end) {
+    return { startDate: toIsoDate(start), endDate: toIsoDate(end) };
+  }
+  const days = Number.parseInt(daysRaw || `${GSC_DEFAULT_DAYS}`, 10);
+  const safeDays = Number.isFinite(days) && days > 0 ? days : GSC_DEFAULT_DAYS;
+  const endDate = new Date();
+  endDate.setUTCHours(0, 0, 0, 0);
+  const startDate = new Date(endDate);
+  startDate.setUTCDate(startDate.getUTCDate() - (safeDays - 1));
+  return { startDate: toIsoDate(startDate), endDate: toIsoDate(endDate), days: safeDays };
+}
+
+function getDateRangeLength(startDate, endDate) {
+  const start = parseDateInput(startDate);
+  const end = parseDateInput(endDate);
+  if (!start || !end) return null;
+  const diffMs = end.valueOf() - start.valueOf();
+  if (diffMs < 0) return null;
+  return Math.floor(diffMs / 86400000) + 1;
+}
+
+function shiftDateRange(startDate, endDate, offsetDays) {
+  const start = parseDateInput(startDate);
+  const end = parseDateInput(endDate);
+  if (!start || !end) return null;
+  const shiftedStart = new Date(start);
+  const shiftedEnd = new Date(end);
+  shiftedStart.setUTCDate(shiftedStart.getUTCDate() + offsetDays);
+  shiftedEnd.setUTCDate(shiftedEnd.getUTCDate() + offsetDays);
+  return { startDate: toIsoDate(shiftedStart), endDate: toIsoDate(shiftedEnd) };
+}
+
+function normalizeGscRows(rows) {
+  return (rows || []).map((row) => ({
+    keys: row.keys || [],
+    clicks: row.clicks || 0,
+    impressions: row.impressions || 0,
+    ctr: row.ctr || 0,
+    position: row.position || 0,
+  }));
+}
+
+function summarizeRows(rows) {
+  if (!rows?.length) {
+    return { clicks: 0, impressions: 0, ctr: 0, position: 0, rows: 0 };
+  }
+  const totals = rows.reduce(
+    (acc, row) => {
+      acc.clicks += row.clicks || 0;
+      acc.impressions += row.impressions || 0;
+      acc.ctrSum += row.ctr || 0;
+      acc.positionSum += row.position || 0;
+      return acc;
+    },
+    { clicks: 0, impressions: 0, ctrSum: 0, positionSum: 0 },
+  );
+  const count = rows.length || 1;
+  return {
+    clicks: totals.clicks,
+    impressions: totals.impressions,
+    ctr: totals.ctrSum / count,
+    position: totals.positionSum / count,
+    rows: count,
+  };
+}
+
+function buildInsights(rows, options = {}) {
+  const minImpressions = options.minImpressions ?? 100;
+  const maxCtr = options.maxCtr ?? 0.02;
+  const maxItems = options.maxItems ?? 20;
+  const positionsMin = options.positionsMin ?? 8;
+  const positionsMax = options.positionsMax ?? 20;
+
+  const byImpressions = [...rows].sort((a, b) => b.impressions - a.impressions);
+  const lowCtrHighImpressions = byImpressions
+    .filter((row) => row.impressions >= minImpressions && row.ctr <= maxCtr)
+    .slice(0, maxItems);
+
+  const positions8to20 = rows
+    .filter(
+      (row) => row.position >= positionsMin && row.position <= positionsMax,
+    )
+    .sort((a, b) => a.position - b.position)
+    .slice(0, maxItems);
+
+  return { lowCtrHighImpressions, positions8to20 };
+}
+
+function readServiceAccountConfig() {
+  if (GSC_SERVICE_ACCOUNT_JSON) {
+    try {
+      return JSON.parse(GSC_SERVICE_ACCOUNT_JSON);
+    } catch (err) {
+      console.warn(`[gsc] Invalid service account JSON: ${err.message}`);
+      return null;
+    }
+  }
+  if (GSC_SERVICE_ACCOUNT_PATH) {
+    try {
+      const raw = fs.readFileSync(GSC_SERVICE_ACCOUNT_PATH, "utf8");
+      return JSON.parse(raw);
+    } catch (err) {
+      console.warn(`[gsc] Failed to read service account file: ${err.message}`);
+      return null;
+    }
+  }
+  return null;
+}
+
+async function fetchGscAccessTokenFromServiceAccount(sa) {
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const payload = {
+    iss: sa.client_email,
+    scope: GSC_SCOPE,
+    aud: sa.token_uri || "https://oauth2.googleapis.com/token",
+    iat: nowSeconds,
+    exp: nowSeconds + 3600,
+  };
+  const header = { alg: "RS256", typ: "JWT" };
+  const unsigned = `${base64UrlEncode(JSON.stringify(header))}.${base64UrlEncode(
+    JSON.stringify(payload),
+  )}`;
+  const signer = crypto.createSign("RSA-SHA256");
+  signer.update(unsigned);
+  const signature = signer.sign(sa.private_key, "base64");
+  const assertion = `${unsigned}.${signature
+    .replace(/=/g, "")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")}`;
+
+  const body = new URLSearchParams({
+    grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+    assertion,
+  });
+
+  const response = await fetch(sa.token_uri || "https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: body.toString(),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error_description || data?.error || "GSC token error");
+  }
+  return {
+    token: data.access_token,
+    expiresIn: data.expires_in || 3600,
+    source: "service_account",
+  };
+}
+
+async function fetchGscAccessTokenFromRefreshToken() {
+  const response = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: GSC_OAUTH_CLIENT_ID || "",
+      client_secret: GSC_OAUTH_CLIENT_SECRET || "",
+      refresh_token: GSC_REFRESH_TOKEN || "",
+      grant_type: "refresh_token",
+    }).toString(),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error_description || data?.error || "GSC token error");
+  }
+  return {
+    token: data.access_token,
+    expiresIn: data.expires_in || 3600,
+    source: "oauth_refresh",
+  };
+}
+
+async function getGscAccessToken() {
+  if (GSC_ACCESS_TOKEN) {
+    return { token: GSC_ACCESS_TOKEN, source: "env_access_token" };
+  }
+  if (gscTokenCache.token && Date.now() < gscTokenCache.expiresAt - 60000) {
+    return { token: gscTokenCache.token, source: gscTokenCache.source || "cache" };
+  }
+  const sa = readServiceAccountConfig();
+  if (sa?.private_key && sa?.client_email) {
+    const { token, expiresIn, source } = await fetchGscAccessTokenFromServiceAccount(sa);
+    gscTokenCache.token = token;
+    gscTokenCache.expiresAt = Date.now() + expiresIn * 1000;
+    gscTokenCache.source = source;
+    return { token, source };
+  }
+  if (GSC_OAUTH_CLIENT_ID && GSC_OAUTH_CLIENT_SECRET && GSC_REFRESH_TOKEN) {
+    const { token, expiresIn, source } = await fetchGscAccessTokenFromRefreshToken();
+    gscTokenCache.token = token;
+    gscTokenCache.expiresAt = Date.now() + expiresIn * 1000;
+    gscTokenCache.source = source;
+    return { token, source };
+  }
+  throw new Error(
+    "Missing GSC auth. Set OPENCLAW_GSC_ACCESS_TOKEN or service account/OAuth refresh credentials.",
+  );
+}
+
+async function gscSearchAnalytics({
+  siteUrl,
+  startDate,
+  endDate,
+  dimensions,
+  rowLimit,
+  startRow,
+  searchType,
+  dataState,
+  aggregationType,
+  dimensionFilterGroups,
+}) {
+  const { token } = await getGscAccessToken();
+  const endpoint = `https://searchconsole.googleapis.com/webmasters/v3/sites/${encodeURIComponent(
+    siteUrl,
+  )}/searchAnalytics/query`;
+  const body = {
+    startDate,
+    endDate,
+    dimensions,
+    rowLimit,
+    startRow,
+    searchType,
+    dataState,
+    aggregationType,
+    dimensionFilterGroups,
+  };
+  const res = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(body),
+  });
+  const payload = await res.json();
+  if (!res.ok) {
+    const message =
+      payload?.error?.message || payload?.error || "GSC request failed";
+    throw new Error(message);
+  }
+  return payload;
 }
 
 function seedWorkspaceFromRepo() {
   try {
-    if (!fs.existsSync(WORKSPACE_SEED_DIR)) return;
+    if (!fs.existsSync(WORKSPACE_SEED_DIR)) {
+      console.log("[workspace] seed skipped: no workspace dir in image");
+      return;
+    }
     fs.mkdirSync(WORKSPACE_DIR, { recursive: true });
     const copyMissingRecursive = (srcDir, destDir) => {
       if (!fs.existsSync(srcDir)) return;
@@ -83,8 +477,10 @@ function seedWorkspaceFromRepo() {
       "skills",
       "ghost",
       "research",
+      "memory",
       "ghost-post.js",
       "ghost-analysis.js",
+      "seo-gsc.js",
       "AGENTS.md",
       "SOUL.md",
       "USER.md",
@@ -113,6 +509,39 @@ function seedWorkspaceFromRepo() {
   } catch (err) {
     console.warn(`[workspace] seed failed: ${err.message}`);
   }
+
+  // Ensure memory/ and daily files exist (agent reads memory/YYYY-MM-DD.md every session)
+  const created = [];
+  try {
+    const memoryDir = path.join(WORKSPACE_DIR, "memory");
+    fs.mkdirSync(memoryDir, { recursive: true });
+    const today = new Date().toISOString().slice(0, 10);
+    const yesterday = new Date(Date.now() - 864e5).toISOString().slice(0, 10);
+    for (const d of [today, yesterday]) {
+      const f = path.join(memoryDir, `${d}.md`);
+      if (!fs.existsSync(f)) {
+        fs.writeFileSync(f, `# ${d}\n\n`, "utf8");
+        created.push(`memory/${d}.md`);
+      }
+    }
+    const workflowAuto = path.join(WORKSPACE_DIR, "WORKFLOW_AUTO.md");
+    if (!fs.existsSync(workflowAuto)) {
+      fs.writeFileSync(workflowAuto, "# Workflow auto\n\n", "utf8");
+      created.push("WORKFLOW_AUTO.md");
+    }
+    const memoryMd = path.join(WORKSPACE_DIR, "MEMORY.md");
+    if (!fs.existsSync(memoryMd)) {
+      fs.writeFileSync(memoryMd, "# Long-term memory\n\n", "utf8");
+      created.push("MEMORY.md");
+    }
+    if (created.length > 0) {
+      console.log(`[workspace] created: ${created.join(", ")}`);
+    } else {
+      console.log("[workspace] ensure-memory: all files already exist");
+    }
+  } catch (err) {
+    console.warn(`[workspace] ensure-memory failed: ${err.message}`);
+  }
 }
 
 seedWorkspaceFromRepo();
@@ -132,6 +561,10 @@ function readAzureConfig() {
   const deployment =
     process.env.AZURE_OPENAI_DEPLOYMENT?.trim() ||
     fileConfig?.deployment?.trim();
+  const embeddingDeployment =
+    process.env.AZURE_OPENAI_EMBEDDING_DEPLOYMENT?.trim() ||
+    fileConfig?.embeddingDeployment?.trim() ||
+    deployment;
   const apiVersion =
     process.env.AZURE_OPENAI_API_VERSION?.trim() ||
     fileConfig?.apiVersion?.trim() ||
@@ -143,6 +576,17 @@ function readAzureConfig() {
         ? "AZURE_OPENAI_API_KEY"
         : fileConfig?.apiKeyEnv?.trim() || "AZURE_OPENAI_KEY";
   const apiKey = process.env[apiKeyEnv]?.trim();
+
+  // Separate key for embeddings (Azure can provide different keys for chat vs embeddings)
+  const embeddingApiKeyEnv =
+    process.env.AZURE_OPENAI_EMBEDDING_KEY
+      ? "AZURE_OPENAI_EMBEDDING_KEY"
+      : process.env.AZURE_OPENAI_EMBEDDING_API_KEY
+        ? "AZURE_OPENAI_EMBEDDING_API_KEY"
+        : fileConfig?.embeddingApiKeyEnv?.trim();
+  const embeddingApiKey = embeddingApiKeyEnv
+    ? process.env[embeddingApiKeyEnv]?.trim()
+    : null;
 
   if (!endpoint || !deployment) {
     return {
@@ -162,9 +606,12 @@ function readAzureConfig() {
     ok: true,
     endpoint: endpoint.replace(/\/+$/, ""),
     deployment,
+    embeddingDeployment,
     apiVersion,
     apiKey,
     apiKeyEnv,
+    embeddingApiKey: embeddingApiKey || apiKey,
+    embeddingApiKeyEnv: embeddingApiKeyEnv || apiKeyEnv,
   };
 }
 
@@ -223,7 +670,22 @@ const INTERNAL_GATEWAY_PORT = Number.parseInt(
   10,
 );
 const INTERNAL_GATEWAY_HOST = process.env.INTERNAL_GATEWAY_HOST ?? "127.0.0.1";
-const GATEWAY_TARGET = `http://${INTERNAL_GATEWAY_HOST}:${INTERNAL_GATEWAY_PORT}`;
+// IPv6 addresses (e.g. ::1) need brackets in URLs
+const GATEWAY_HOST_FOR_URL = INTERNAL_GATEWAY_HOST.includes(":") ? `[${INTERNAL_GATEWAY_HOST}]` : INTERNAL_GATEWAY_HOST;
+const GATEWAY_TARGET = `http://${GATEWAY_HOST_FOR_URL}:${INTERNAL_GATEWAY_PORT}`;
+
+/** Append gateway token to URL query for Control UI (bypasses device identity per OpenClaw docs). */
+function appendTokenToUrl(url, ctx = "") {
+  const hadToken = /[?&]token=/.test(url);
+  if (hadToken) {
+    if (PROXY_DEBUG) console.log(`[proxy-debug] appendTokenToUrl${ctx}: path already has token, skipping`, redactTokenInUrl(url));
+    return url;
+  }
+  const sep = url.includes("?") ? "&" : "?";
+  const out = url + sep + "token=" + encodeURIComponent(OPENCLAW_GATEWAY_TOKEN);
+  if (PROXY_DEBUG) console.log(`[proxy-debug] appendTokenToUrl${ctx}: appended token`, url, "->", redactTokenInUrl(out));
+  return out;
+}
 
 // Always run the built-from-source CLI entry directly to avoid PATH/global-install mismatches.
 const OPENCLAW_ENTRY =
@@ -703,6 +1165,40 @@ async function restartGateway() {
   return ensureGatewayRunning();
 }
 
+function getBasicPassword(req) {
+  const header = req.headers.authorization || "";
+  const [scheme, encoded] = header.split(" ");
+  if (scheme !== "Basic" || !encoded) return null;
+  const decoded = Buffer.from(encoded, "base64").toString("utf8");
+  const idx = decoded.indexOf(":");
+  return idx >= 0 ? decoded.slice(idx + 1) : "";
+}
+
+function requireSeoAuth(req, res, next) {
+  if (SEO_ALLOW_SETUP_AUTH && SETUP_PASSWORD) {
+    const password = getBasicPassword(req);
+    if (password && password === SETUP_PASSWORD) {
+      return next();
+    }
+  }
+  if (!SEO_API_KEY) {
+    return res
+      .status(500)
+      .type("text/plain")
+      .send("OPENCLAW_SEO_API_KEY is not set. Set it before using /api/seo.");
+  }
+  const header = req.headers.authorization || "";
+  const token = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
+  const apiKey =
+    token ||
+    req.headers["x-api-key"]?.toString().trim() ||
+    req.query.apiKey?.toString().trim();
+  if (!apiKey || apiKey !== SEO_API_KEY) {
+    return res.status(401).type("text/plain").send("Invalid SEO API key");
+  }
+  return next();
+}
+
 function requireSetupAuth(req, res, next) {
   if (!SETUP_PASSWORD) {
     return res
@@ -713,15 +1209,11 @@ function requireSetupAuth(req, res, next) {
       );
   }
 
-  const header = req.headers.authorization || "";
-  const [scheme, encoded] = header.split(" ");
-  if (scheme !== "Basic" || !encoded) {
+  const password = getBasicPassword(req);
+  if (password === null) {
     res.set("WWW-Authenticate", 'Basic realm="Openclaw Setup"');
     return res.status(401).send("Auth required");
   }
-  const decoded = Buffer.from(encoded, "base64").toString("utf8");
-  const idx = decoded.indexOf(":");
-  const password = idx >= 0 ? decoded.slice(idx + 1) : "";
   if (password !== SETUP_PASSWORD) {
     res.set("WWW-Authenticate", 'Basic realm="Openclaw Setup"');
     return res.status(401).send("Invalid password");
@@ -750,6 +1242,151 @@ async function probeGateway() {
     sock.on("timeout", () => done(false));
     sock.on("error", () => done(false));
   });
+}
+
+function resolveSiteUrl(req) {
+  const siteUrl =
+    req.query.siteUrl?.toString().trim() ||
+    req.body?.siteUrl?.toString().trim() ||
+    GSC_DEFAULT_SITE;
+  return siteUrl;
+}
+
+function parsePositiveInt(value, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return parsed;
+}
+
+function parseOptionalInt(value) {
+  if (value === undefined || value === null || value === "") return undefined;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function parseGscParams(req, overrides = {}) {
+  const { startDate, endDate } = parseDateRange(req.query);
+  return {
+    siteUrl: resolveSiteUrl(req),
+    startDate,
+    endDate,
+    searchType: req.query.searchType?.toString().trim() || "web",
+    dataState: req.query.dataState?.toString().trim() || undefined,
+    aggregationType: req.query.aggregationType?.toString().trim() || undefined,
+    rowLimit: parsePositiveInt(req.query.rowLimit, 250),
+    startRow: parseOptionalInt(req.query.startRow),
+    ...overrides,
+  };
+}
+
+async function fetchGscRows(params) {
+  const response = await gscSearchAnalytics(params);
+  const rows = normalizeGscRows(response.rows);
+  return { rows, raw: response };
+}
+
+async function getGscSummaryData(options) {
+  const {
+    siteUrl,
+    startDate,
+    endDate,
+    searchType,
+    dataState,
+    aggregationType,
+    rowLimit,
+    includeInsights = true,
+    includeCompare = false,
+  } = options;
+
+  const baseParams = {
+    siteUrl,
+    startDate,
+    endDate,
+    searchType,
+    dataState,
+    aggregationType,
+    rowLimit,
+    dimensions: ["query"],
+  };
+
+  const current = await fetchGscRows(baseParams);
+  const summary = summarizeRows(current.rows);
+  const insights = includeInsights ? buildInsights(current.rows) : null;
+
+  let compare = null;
+  if (includeCompare) {
+    const rangeLength = getDateRangeLength(startDate, endDate);
+    if (rangeLength) {
+      const previous = shiftDateRange(startDate, endDate, -rangeLength);
+      if (previous) {
+        const prevRows = await fetchGscRows({
+          ...baseParams,
+          startDate: previous.startDate,
+          endDate: previous.endDate,
+        });
+        compare = {
+          dateRange: previous,
+          summary: summarizeRows(prevRows.rows),
+        };
+      }
+    }
+  }
+
+  return {
+    summary,
+    rows: current.rows,
+    insights,
+    compare,
+  };
+}
+
+async function warmGscSummaryCache() {
+  if (!GSC_DEFAULT_SITE) {
+    console.warn("[seo-cache] OPENCLAW_GSC_SITE_URL not set; skip warmup.");
+    return;
+  }
+  const { startDate, endDate } = parseDateRange({});
+  const params = {
+    siteUrl: GSC_DEFAULT_SITE,
+    startDate,
+    endDate,
+    searchType: "web",
+    rowLimit: 250,
+    dimensions: ["query"],
+  };
+  const data = await getGscSummaryData({
+    ...params,
+    includeInsights: true,
+    includeCompare: SEO_CACHE_WARM_INCLUDE_COMPARE,
+  });
+  const payload = {
+    siteUrl: params.siteUrl,
+    dateRange: { startDate: params.startDate, endDate: params.endDate },
+    dimensions: params.dimensions,
+    ...data,
+  };
+  const cacheKey = stableStringify({
+    route: "gsc-summary",
+    params,
+    includeInsights: true,
+    includeCompare: SEO_CACHE_WARM_INCLUDE_COMPARE,
+  });
+  writeCache(cacheKey, payload, SEO_CACHE_TTL_MS);
+}
+
+function startSeoWarmup() {
+  if (!SEO_CACHE_WARM_INTERVAL_MINUTES) return;
+  const intervalMs = SEO_CACHE_WARM_INTERVAL_MINUTES * 60 * 1000;
+  setTimeout(() => {
+    warmGscSummaryCache().catch((err) => {
+      console.warn(`[seo-cache] warmup failed: ${err.message}`);
+    });
+  }, 5000);
+  setInterval(() => {
+    warmGscSummaryCache().catch((err) => {
+      console.warn(`[seo-cache] warmup failed: ${err.message}`);
+    });
+  }, intervalMs);
 }
 
 const app = express();
@@ -788,6 +1425,103 @@ app.get("/healthz", async (_req, res) => {
       lastDoctorAt,
     },
   });
+});
+
+// SEO / GSC API (protected by OPENCLAW_SEO_API_KEY)
+app.get("/api/seo/gsc/queries", requireSeoAuth, async (req, res) => {
+  try {
+    const params = parseGscParams(req, { dimensions: ["query"] });
+    if (!params.siteUrl) {
+      return res.status(400).json({ ok: false, error: "Missing siteUrl" });
+    }
+    const includeInsights = req.query.includeInsights?.toString() !== "false";
+    const cacheKey = stableStringify({
+      route: "gsc-queries",
+      params,
+      includeInsights,
+    });
+    const { payload, cache } = await withCache(cacheKey, SEO_CACHE_TTL_MS, async () => {
+      const { rows } = await fetchGscRows(params);
+      return {
+        siteUrl: params.siteUrl,
+        dateRange: { startDate: params.startDate, endDate: params.endDate },
+        dimensions: params.dimensions,
+        rows,
+        summary: summarizeRows(rows),
+        insights: includeInsights ? buildInsights(rows) : null,
+      };
+    });
+    return res.json({ ok: true, source: "gsc", cache, ...payload });
+  } catch (err) {
+    console.error(`[gsc] queries error: ${err.message}`);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.get("/api/seo/gsc/pages", requireSeoAuth, async (req, res) => {
+  try {
+    const params = parseGscParams(req, { dimensions: ["page"] });
+    if (!params.siteUrl) {
+      return res.status(400).json({ ok: false, error: "Missing siteUrl" });
+    }
+    const includeInsights = req.query.includeInsights?.toString() !== "false";
+    const cacheKey = stableStringify({
+      route: "gsc-pages",
+      params,
+      includeInsights,
+    });
+    const { payload, cache } = await withCache(cacheKey, SEO_CACHE_TTL_MS, async () => {
+      const { rows } = await fetchGscRows(params);
+      return {
+        siteUrl: params.siteUrl,
+        dateRange: { startDate: params.startDate, endDate: params.endDate },
+        dimensions: params.dimensions,
+        rows,
+        summary: summarizeRows(rows),
+        insights: includeInsights ? buildInsights(rows) : null,
+      };
+    });
+    return res.json({ ok: true, source: "gsc", cache, ...payload });
+  } catch (err) {
+    console.error(`[gsc] pages error: ${err.message}`);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.get("/api/seo/gsc/summary", requireSeoAuth, async (req, res) => {
+  try {
+    const params = parseGscParams(req, { dimensions: ["query"] });
+    if (!params.siteUrl) {
+      return res.status(400).json({ ok: false, error: "Missing siteUrl" });
+    }
+    const includeInsights = req.query.includeInsights?.toString() !== "false";
+    const includeCompare =
+      req.query.compare?.toString().trim() === "previous" ||
+      req.query.compare?.toString().trim() === "true";
+    const cacheKey = stableStringify({
+      route: "gsc-summary",
+      params,
+      includeInsights,
+      includeCompare,
+    });
+    const { payload, cache } = await withCache(cacheKey, SEO_CACHE_TTL_MS, async () => {
+      const data = await getGscSummaryData({
+        ...params,
+        includeInsights,
+        includeCompare,
+      });
+      return {
+        siteUrl: params.siteUrl,
+        dateRange: { startDate: params.startDate, endDate: params.endDate },
+        dimensions: params.dimensions,
+        ...data,
+      };
+    });
+    return res.json({ ok: true, source: "gsc", cache, ...payload });
+  } catch (err) {
+    console.error(`[gsc] summary error: ${err.message}`);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
 });
 
 // Azure OpenAI proxy for OpenAI-compatible providers
@@ -861,6 +1595,43 @@ app.post("/_azure_openai/v1/responses", async (req, res) => {
     return Readable.fromWeb(upstream.body).pipe(res);
   } catch (err) {
     console.error(`[azure-proxy] Failed responses request: ${err.message}`);
+    return res.status(502).json({ error: { message: "Azure proxy failed" } });
+  }
+});
+
+app.post("/_azure_openai/v1/embeddings", async (req, res) => {
+  const azure = readAzureConfig();
+  if (!azure.ok) {
+    return res.status(500).json({ error: { message: azure.error } });
+  }
+
+  const targetUrl = `${azure.endpoint}/openai/deployments/${encodeURIComponent(
+    azure.embeddingDeployment,
+  )}/embeddings?api-version=${encodeURIComponent(azure.apiVersion)}`;
+
+  try {
+    const upstream = await fetch(targetUrl, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "api-key": azure.embeddingApiKey,
+      },
+      body: JSON.stringify(req.body ?? {}),
+    });
+
+    res.status(upstream.status);
+    upstream.headers.forEach((value, key) => {
+      if (key.toLowerCase() === "transfer-encoding") return;
+      res.setHeader(key, value);
+    });
+
+    if (!upstream.body) {
+      return res.end();
+    }
+
+    return Readable.fromWeb(upstream.body).pipe(res);
+  } catch (err) {
+    console.error(`[azure-proxy] Failed embeddings request: ${err.message}`);
     return res.status(502).json({ error: { message: "Azure proxy failed" } });
   }
 });
@@ -1234,6 +2005,8 @@ app.post("/setup/api/run", requireSetupAuth, async (req, res) => {
       // Persist Azure config if provided
       const azureEndpoint = payload.azureEndpoint?.trim();
       const azureDeployment = payload.azureDeployment?.trim();
+      const azureEmbeddingDeployment = payload.azureEmbeddingDeployment?.trim();
+      const azureEmbeddingApiKeyEnv = payload.azureEmbeddingApiKeyEnv?.trim();
       const azureApiVersion = payload.azureApiVersion?.trim();
       const azureApiKeyEnv = payload.azureApiKeyEnv?.trim();
       const azureApi = payload.azureApi?.trim();
@@ -1258,6 +2031,12 @@ app.post("/setup/api/run", requireSetupAuth, async (req, res) => {
           apiVersion: azureApiVersion || "2024-12-01-preview",
           apiKeyEnv: azureApiKeyEnv || "AZURE_OPENAI_KEY",
         };
+        if (azureEmbeddingDeployment) {
+          azureConfig.embeddingDeployment = azureEmbeddingDeployment;
+        }
+        if (azureEmbeddingApiKeyEnv) {
+          azureConfig.embeddingApiKeyEnv = azureEmbeddingApiKeyEnv;
+        }
 
         fs.mkdirSync(STATE_DIR, { recursive: true });
         fs.writeFileSync(
@@ -1377,6 +2156,42 @@ app.post("/setup/api/run", requireSetupAuth, async (req, res) => {
         }
 
         console.log(`[custom-provider] ✓ Custom provider "${providerId}" configured successfully`);
+      }
+
+      // Configure memorySearch to use Azure embeddings proxy when embedding deployment is set
+      if (azureEndpoint && azureDeployment && azureEmbeddingDeployment) {
+        const apiKeyEnvForMemory =
+          payload.azureEmbeddingApiKeyEnv?.trim() ||
+          payload.azureApiKeyEnv?.trim() ||
+          "AZURE_OPENAI_KEY";
+        const memorySearchConfig = {
+          provider: "openai",
+          model: azureEmbeddingDeployment,
+          remote: {
+            baseUrl: `http://127.0.0.1:${PORT}/_azure_openai/v1`,
+            apiKey: `\${${apiKeyEnvForMemory}}`,
+          },
+        };
+        const setMemoryResult = await runCmd(
+          OPENCLAW_NODE,
+          clawArgs([
+            "config",
+            "set",
+            "--json",
+            "agents.defaults.memorySearch",
+            JSON.stringify(memorySearchConfig),
+          ]),
+        );
+        extra += `\n[memory-search] exit=${setMemoryResult.code}\n${setMemoryResult.output || "(no output)"}`;
+        if (setMemoryResult.code === 0) {
+          console.log(
+            `[memory-search] ✓ Configured Azure embeddings for memory (${azureEmbeddingDeployment})`,
+          );
+        } else {
+          console.warn(
+            `[memory-search] Failed to set memorySearch: ${setMemoryResult.output}`,
+          );
+        }
       }
 
       const channelsHelp = await runCmd(
@@ -2296,15 +3111,20 @@ proxy.on("proxyReq", (proxyReq, req, res) => {
   proxyReq.setHeader("Authorization", `Bearer ${OPENCLAW_GATEWAY_TOKEN}`);
 });
 
-// Log WebSocket upgrade proxy events (token is injected via headers option in server.on("upgrade"))
+// Inject auth token for WebSocket upgrades (http-proxy requires proxyReqWs for reliable injection)
 proxy.on("proxyReqWs", (proxyReq, req, socket, options, head) => {
-  console.log(`[proxy-event] WebSocket proxyReqWs event fired for ${req.url}`);
-  console.log(`[proxy-event] Headers:`, JSON.stringify(proxyReq.getHeaders()));
+  proxyReq.setHeader("Authorization", `Bearer ${OPENCLAW_GATEWAY_TOKEN}`);
+  if (PROXY_DEBUG) console.log(`[proxy-debug] proxyReqWs fired: path=`, redactTokenInUrl(req.url), "| Authorization header set");
+  debug(`[proxy] WebSocket upgrade ${redactTokenInUrl(req.url)} - injecting token`);
 });
 
 app.use(async (req, res) => {
   // If not configured, force users to /setup for any non-setup routes.
-  if (!isConfigured() && !req.path.startsWith("/setup")) {
+  if (
+    !isConfigured() &&
+    !req.path.startsWith("/setup") &&
+    !req.path.startsWith("/api/seo")
+  ) {
     return res.redirect("/setup");
   }
 
@@ -2338,7 +3158,20 @@ app.use(async (req, res) => {
     }
   }
 
-  // Proxy to gateway (auth token injected via proxyReq event)
+  // Redirect Control UI routes to add token in URL — gateway may require token from client origin
+  const controlUiPaths = ["/", "/openclaw", "/chat"];
+  const isControlUiPath = controlUiPaths.some((p) => req.path === p || req.path.startsWith(p + "/"));
+  if (req.method === "GET" && isControlUiPath && !/[?&]token=/.test(req.url)) {
+    const sep = req.url.includes("?") ? "&" : "?";
+    const redirectUrl = req.url + sep + "token=" + encodeURIComponent(OPENCLAW_GATEWAY_TOKEN);
+    if (PROXY_DEBUG) console.log(`[proxy-debug] Redirecting to add token: ${req.path} -> ${redactTokenInUrl(redirectUrl)}`);
+    return res.redirect(302, redirectUrl);
+  }
+
+  // Proxy to gateway: token in URL bypasses device identity (per OpenClaw docs)
+  const pathBefore = req.url;
+  req.url = appendTokenToUrl(req.url, " [http]");
+  if (PROXY_DEBUG) console.log(`[proxy-debug] HTTP proxy: ${req.method}`, redactTokenInUrl(pathBefore), "-> gateway");
   return proxy.web(req, res, { target: GATEWAY_TARGET });
 });
 
@@ -2347,6 +3180,7 @@ const server = app.listen(PORT, async () => {
   console.log(`[wrapper] listening on port ${PORT}`);
   console.log(`[wrapper] setup wizard: http://localhost:${PORT}/setup`);
   console.log(`[wrapper] configured: ${isConfigured()}`);
+  if (PROXY_DEBUG) console.log(`[proxy-debug] Proxy debug logging enabled (OPENCLAW_PROXY_DEBUG=true)`);
 
   // Harden state dir for OpenClaw and avoid missing credentials dir on fresh volumes.
   try {
@@ -2370,6 +3204,8 @@ const server = app.listen(PORT, async () => {
       console.error(`[wrapper] gateway failed to start at boot: ${String(err)}`);
     }
   }
+
+  startSeoWarmup();
 });
 
 // Handle WebSocket upgrades
@@ -2385,8 +3221,11 @@ server.on("upgrade", async (req, socket, head) => {
     return;
   }
 
-  // Inject auth token via headers option (req.headers modification doesn't work for WS)
-  debug(`[ws-upgrade] Proxying WebSocket upgrade with token: ${OPENCLAW_GATEWAY_TOKEN.slice(0, 16)}...`);
+  // Token in URL bypasses device identity; also keep header for redundancy
+  const pathBefore = req.url;
+  req.url = appendTokenToUrl(req.url, " [ws]");
+  console.log(`[proxy] WS upgrade ${redactTokenInUrl(pathBefore)} -> gateway (token in URL + header)`);
+  if (PROXY_DEBUG) console.log(`[proxy-debug] WS upgrade: proxying path=`, redactTokenInUrl(req.url));
 
   proxy.ws(req, socket, head, {
     target: GATEWAY_TARGET,

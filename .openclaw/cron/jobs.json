@@ -1,0 +1,261 @@
+{
+  "version": 1,
+  "jobs": [
+    {
+      "id": "2bfd2df4-f977-4549-9999-0980c249e61b",
+      "name": "ghost-news-daily",
+      "enabled": true,
+      "createdAtMs": 1771690635462,
+      "updatedAtMs": 1772193634686,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 7 * * *",
+        "tz": "America/Bogota"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "Usa la skill ghost-content.\nIdioma: español.\nCrea un draft con 5 titulares de noticias de educación (3 locales LatAm/Colombia + 2 internacionales).\nEnfoque: ciberseguridad, educación superior, tecnología educativa.\nFormato: título + bullets + 1 párrafo de contexto por noticia.\nTags: News, Education, Cybersecurity, Edtech\nStatus: draft\nNo pidas confirmación.\n\nIMPORTANTE: publica vía node ./ghost-post.js y devuelve solo el link/ID del post (o el error). No incluyas el contenido en la respuesta."
+      },
+      "delivery": {
+        "mode": "announce",
+        "channel": "telegram",
+        "to": "5062428945",
+        "accountId": "default"
+      },
+      "state": {
+        "nextRunAtMs": 1772280000000,
+        "lastRunAtMs": 1772193600010,
+        "lastStatus": "error",
+        "lastDurationMs": 34676,
+        "consecutiveErrors": 5,
+        "lastError": "cron announce delivery failed"
+      }
+    },
+    {
+      "id": "105881f6-00e0-49d5-8e79-7bed24441a43",
+      "name": "ghost-post-10am",
+      "enabled": true,
+      "createdAtMs": 1771690636609,
+      "updatedAtMs": 1772204434926,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 10 * * *",
+        "tz": "America/Bogota"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "Usa la skill ghost-content.\nIdioma: español.\nGenera un post investigativo con enfoque financiero para CFO + VP Enrollment.\nLongitud: 900–1200 palabras.\nEstructura: título, resumen ejecutivo, 4–6 secciones, conclusión, CTA.\nStatus: draft\nNo pidas confirmación.\n\nIMPORTANTE: publica vía node ./ghost-post.js y devuelve solo el link/ID del post (o el error). No incluyas el contenido en la respuesta."
+      },
+      "delivery": {
+        "mode": "announce",
+        "channel": "telegram",
+        "to": "5062428945",
+        "accountId": "default"
+      },
+      "state": {
+        "nextRunAtMs": 1772290800000,
+        "lastRunAtMs": 1772204400017,
+        "lastStatus": "error",
+        "lastDurationMs": 34909,
+        "consecutiveErrors": 5,
+        "lastError": "cron announce delivery failed"
+      }
+    },
+    {
+      "id": "0d7e4aaa-09c6-42a5-bb7a-d6e0a50cc511",
+      "name": "ghost-post-2pm",
+      "enabled": true,
+      "createdAtMs": 1771690637645,
+      "updatedAtMs": 1772132434802,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 14 * * *",
+        "tz": "America/Bogota"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "Usa la skill ghost-content.\nIdioma: español.\nGenera un post investigativo con enfoque estratégico para CFO + VP Enrollment.\nLongitud: 900–1200 palabras.\nEstructura: título, resumen ejecutivo, 4–6 secciones, conclusión, CTA.\nStatus: draft\nNo pidas confirmación.\n\nIMPORTANTE: publica vía node ./ghost-post.js y devuelve solo el link/ID del post (o el error). No incluyas el contenido en la respuesta."
+      },
+      "delivery": {
+        "mode": "announce",
+        "channel": "telegram",
+        "to": "5062428945",
+        "accountId": "default"
+      },
+      "state": {
+        "nextRunAtMs": 1772218800000,
+        "lastRunAtMs": 1772132400051,
+        "lastStatus": "error",
+        "lastDurationMs": 34751,
+        "consecutiveErrors": 4,
+        "lastError": "cron announce delivery failed"
+      }
+    },
+    {
+      "id": "6944fa37-b202-4f7d-b165-7d1f2d797f7e",
+      "name": "ghost-post-2pm-test",
+      "enabled": true,
+      "createdAtMs": 1771702924357,
+      "updatedAtMs": 1772135194920,
+      "schedule": {
+        "kind": "cron",
+        "expr": "46 14 * * *",
+        "tz": "America/Bogota"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "Usa la skill ghost-content.\nIdioma: español.\nGenera un post investigativo con enfoque estratégico para CFO + VP Enrollment.\nLongitud: 900–1200 palabras.\nEstructura: título, resumen ejecutivo, 4–6 secciones, conclusión, CTA.\nStatus: draft\nNo pidas confirmación."
+      },
+      "delivery": {
+        "mode": "announce",
+        "channel": "telegram",
+        "to": "5062428945",
+        "accountId": "default"
+      },
+      "state": {
+        "nextRunAtMs": 1772221560000,
+        "lastRunAtMs": 1772135160021,
+        "lastStatus": "error",
+        "lastDurationMs": 34899,
+        "consecutiveErrors": 4,
+        "lastError": "cron announce delivery failed"
+      }
+    },
+    {
+      "id": "dd6f5745-c5f3-4a51-86f9-40e1798f5c83",
+      "name": "ghost-post-2pm-test-retry",
+      "enabled": true,
+      "createdAtMs": 1771703332681,
+      "updatedAtMs": 1772135614757,
+      "schedule": {
+        "kind": "cron",
+        "expr": "53 14 * * *",
+        "tz": "America/Bogota"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "Usa la skill ghost-content.\nIdioma: español.\nGenera un post investigativo con enfoque estratégico para CFO + VP Enrollment.\nLongitud: 900–1200 palabras.\nEstructura: título, resumen ejecutivo, 4–6 secciones, conclusión, CTA.\nStatus: draft\nNo pidas confirmación.\n\nIMPORTANTE: debes ejecutar el comando de publicación real (node ./ghost-post.js ...) y devolver el link/ID del post. No entregues solo el contenido."
+      },
+      "delivery": {
+        "mode": "announce",
+        "channel": "telegram",
+        "to": "5062428945",
+        "accountId": "default"
+      },
+      "state": {
+        "nextRunAtMs": 1772221980000,
+        "lastRunAtMs": 1772135580027,
+        "lastStatus": "error",
+        "lastDurationMs": 34730,
+        "consecutiveErrors": 4,
+        "lastError": "cron announce delivery failed"
+      }
+    },
+    {
+      "id": "bf7e37fa-9a47-4b83-a466-83b9849f5980",
+      "name": "ghost-post-2pm-test-safe",
+      "enabled": true,
+      "createdAtMs": 1771703696803,
+      "updatedAtMs": 1772135974662,
+      "schedule": {
+        "kind": "cron",
+        "expr": "59 14 * * *",
+        "tz": "America/Bogota"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "Usa la skill ghost-content.\nIdioma: español.\nGenera un post estratégico para CFO y VP Enrollment sobre sostenibilidad financiera y planeación de matrícula en 2026.\nLongitud: 900–1200 palabras.\nEstructura: título, resumen ejecutivo, 4–6 secciones, conclusión, CTA.\nEvita temas sensibles y lenguaje polémico.\nStatus: draft.\nNo pidas confirmación.\n\nIMPORTANTE: ejecuta el comando de publicación real (node ./ghost-post.js ...) y devuelve el link/ID del post."
+      },
+      "delivery": {
+        "mode": "announce",
+        "channel": "telegram",
+        "to": "5062428945",
+        "accountId": "default"
+      },
+      "state": {
+        "nextRunAtMs": 1772222340000,
+        "lastRunAtMs": 1772135940024,
+        "lastStatus": "error",
+        "lastDurationMs": 34638,
+        "consecutiveErrors": 4,
+        "lastError": "cron announce delivery failed"
+      }
+    },
+    {
+      "id": "6d6c7c2a-ffbc-4204-ac5b-b5768c3adb3e",
+      "name": "ghost-post-2pm-test-debug",
+      "enabled": true,
+      "createdAtMs": 1771704373578,
+      "updatedAtMs": 1772136575706,
+      "schedule": {
+        "kind": "cron",
+        "expr": "9 15 * * *",
+        "tz": "America/Bogota"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "Usa la skill ghost-content.\nIdioma: español.\nGenera un post estratégico para CFO y VP Enrollment sobre sostenibilidad financiera y planeación de matrícula en 2026.\nLongitud: 900–1200 palabras.\nEstructura: título, resumen ejecutivo, 4–6 secciones, conclusión, CTA.\nEvita temas sensibles y lenguaje polémico.\nStatus: draft.\nNo pidas confirmación.\n\nDEBUG: antes de publicar, imprime:\n1) `DEBUG: pwd=<ruta>`\n2) `DEBUG: ghost-post.js exists=<true/false>`\n3) `DEBUG: ghost-draft.html exists=<true/false>`\n\nIMPORTANTE: ejecuta el comando de publicación real (node ./ghost-post.js ...) y devuelve el link/ID del post."
+      },
+      "delivery": {
+        "mode": "announce",
+        "channel": "telegram",
+        "to": "5062428945",
+        "accountId": "default"
+      },
+      "state": {
+        "nextRunAtMs": 1772222940000,
+        "lastRunAtMs": 1772136540043,
+        "lastStatus": "error",
+        "lastDurationMs": 35663,
+        "consecutiveErrors": 2,
+        "lastError": "cron announce delivery failed"
+      }
+    },
+    {
+      "id": "0cd8434e-ae1e-4794-8d64-9f9173d113c6",
+      "name": "ghost-post-6pm",
+      "enabled": true,
+      "createdAtMs": 1771690639264,
+      "updatedAtMs": 1772146837872,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 18 * * *",
+        "tz": "America/Bogota"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "Usa la skill ghost-content.\nIdioma: español.\nGenera un post investigativo con enfoque operativo para CFO + VP Enrollment.\nLongitud: 900–1200 palabras.\nEstructura: título, resumen ejecutivo, 4–6 secciones, conclusión, CTA.\nStatus: draft\nNo pidas confirmación.\n\nIMPORTANTE: publica vía node ./ghost-post.js y devuelve solo el link/ID del post (o el error). No incluyas el contenido en la respuesta."
+      },
+      "delivery": {
+        "mode": "announce",
+        "channel": "telegram",
+        "to": "5062428945",
+        "accountId": "default"
+      },
+      "state": {
+        "nextRunAtMs": 1772233200000,
+        "lastRunAtMs": 1772146800041,
+        "lastStatus": "error",
+        "lastDurationMs": 37831,
+        "consecutiveErrors": 6,
+        "lastError": "cron announce delivery failed"
+      }
+    }
+  ]
+}

@@ -43,9 +43,25 @@ This repo packages **OpenClaw** for Railway with a comprehensive **/setup** web 
 - **`OPENCLAW_PUBLIC_PORT=8080`** - Wrapper HTTP port (default: 8080)
 - **`PORT`** - Fallback if OPENCLAW_PUBLIC_PORT not set
 - **`INTERNAL_GATEWAY_PORT=18789`** - Gateway internal port
+- **`INTERNAL_GATEWAY_HOST=::1`** - Use when gateway binds to IPv6 (e.g. `listening on ws://[::1]:18789`); default `127.0.0.1`
 - **`OPENCLAW_ENTRY`** - Path to openclaw entry.js (default: /openclaw/dist/entry.js)
 - **`OPENCLAW_TEMPLATE_DEBUG=true`** - Enable debug logging (logs sensitive tokens)
+- **`OPENCLAW_PROXY_DEBUG=true`** - Enable proxy/WebSocket debug logging (token redacted, for troubleshooting Control UI connectivity)
 - **`OPENCLAW_TRUST_PROXY_ALL=true`** - Trust all proxies (Railway auto-detected by default)
+
+### SEO / GSC (optional)
+
+- **`OPENCLAW_SEO_API_KEY`** - API key for `/api/seo/*` endpoints
+- **`OPENCLAW_SEO_ALLOW_SETUP_AUTH=true`** - Allow Basic auth with `SETUP_PASSWORD` for SEO endpoints
+- **`OPENCLAW_GSC_SITE_URL`** - Default GSC site (`sc-domain:example.com` or full URL)
+- **`OPENCLAW_GSC_DEFAULT_DAYS=28`** - Default date window for queries
+- **`OPENCLAW_GSC_ACCESS_TOKEN`** - Direct access token (short-lived, highest priority)
+- **`OPENCLAW_GSC_SERVICE_ACCOUNT_JSON`** - Service account JSON string
+- **`OPENCLAW_GSC_SERVICE_ACCOUNT_PATH`** - Service account JSON file path
+- **`OPENCLAW_GSC_OAUTH_CLIENT_ID`** / **`OPENCLAW_GSC_OAUTH_CLIENT_SECRET`** / **`OPENCLAW_GSC_REFRESH_TOKEN`** - OAuth refresh flow
+- **`OPENCLAW_SEO_CACHE_TTL_MS=900000`** - Cache TTL for SEO responses
+- **`OPENCLAW_SEO_CACHE_WARM_INTERVAL_MINUTES=0`** - Warm summary cache on interval
+- **`OPENCLAW_SEO_CACHE_WARM_COMPARE=true`** - Include previous-period compare in warmup
 
 ### Legacy (auto-migrated)
 
@@ -159,8 +175,29 @@ The setup wizard now includes Azure helper fields that map to a custom provider:
 - Endpoint + deployment are converted to an OpenAI-compatible base URL
 - API version is appended as a query string
 - API key is injected via an environment variable (recommended)
+- **Embedding deployment** (optional): For memory search. Deploy `text-embedding-3-small` (or similar) in Azure and set `AZURE_OPENAI_EMBEDDING_DEPLOYMENT` or fill the "Embedding deployment" field in `/setup`
+- **Embedding API key** (optional): Azure may provide a separate key for embeddings. Set `AZURE_OPENAI_EMBEDDING_KEY` in Railway. Falls back to the chat key if not set.
 
 Set `AZURE_OPENAI_API_KEY` (or your chosen env var) in Railway, then fill the Azure section in `/setup`.
+
+**Memory search with Azure embeddings:** The wrapper proxies `/_azure_openai/v1/embeddings` to your Azure embedding deployment. To enable memory sync, add `memorySearch` to `openclaw.json` via Config Editor (`/setup`):
+
+```json
+"agents": {
+  "defaults": {
+    "memorySearch": {
+      "provider": "openai",
+      "model": "text-embedding-3-small",
+      "remote": {
+        "baseUrl": "http://127.0.0.1:8080/_azure_openai/v1",
+        "apiKey": "${AZURE_OPENAI_KEY}"
+      }
+    }
+  }
+}
+```
+
+Replace `8080` with your `PORT` if different. The gateway runs inside the container, so `127.0.0.1` refers to the wrapper. If Azure gave you a separate key for embeddings, use `apiKey: "${AZURE_OPENAI_EMBEDDING_KEY}"` instead.
 
 ### Better Diagnostics 📊
 
@@ -184,6 +221,35 @@ Set `AZURE_OPENAI_API_KEY` (or your chosen env var) in Railway, then fill the Az
 - Graceful shutdown handling (SIGTERM → SIGKILL escalation)
 - Secret redaction in debug output (5 token patterns)
 - Credentials directory with strict 700 permissions
+
+### SEO Insights API (optional) 🔍
+
+This fork can expose a minimal **GSC insights API** so an agent can consume clean, normalized data without talking directly to Google.
+
+**Recommended architecture:** for long-term SEO programmatic usage, prefer a dedicated microservice. The wrapper supports a lean in-process version for quick starts or single-tenant setups.
+
+**Endpoints (all require `OPENCLAW_SEO_API_KEY`):**
+
+- `GET /api/seo/gsc/queries`
+- `GET /api/seo/gsc/pages`
+- `GET /api/seo/gsc/summary`
+
+**Common query params:**
+
+- `siteUrl` (optional if `OPENCLAW_GSC_SITE_URL` is set)
+- `startDate`, `endDate` (YYYY-MM-DD) or `days`
+- `rowLimit`, `startRow`, `searchType`
+- `includeInsights=true|false`
+- `compare=previous` (summary only)
+
+**Response contract (simplified):**
+
+- `ok`, `source`, `siteUrl`, `dateRange`, `dimensions`
+- `rows[]` with `keys`, `clicks`, `impressions`, `ctr`, `position`
+- `summary` totals derived from rows
+- `insights` (positions 8–20, low CTR + high impressions)
+- `compare` (summary only, previous period)
+- `cache` metadata
 
 ## Railway Deploy Instructions
 
@@ -241,6 +307,15 @@ Then:
 6. Invite the bot to your server (OAuth2 URL Generator → scopes: `bot`, `applications.commands`)
 
 ## Troubleshooting
+
+### "disconnected (1008): device identity required"
+
+When accessing the Control UI via a reverse proxy (e.g. Railway), the gateway may require the token in the client URL. The wrapper **automatically redirects** `/`, `/openclaw`, and `/chat` to add `?token=...` when missing. If you see this error:
+
+1. **Ensure you followed the redirect** — visit `https://your-app.up.railway.app/` (you may be redirected to `/?token=...`)
+2. **Bookmark the tokenized URL** — the token will be visible in the address bar; this is required for reverse-proxy setups
+3. **Check `INTERNAL_GATEWAY_HOST`** — if the gateway binds to IPv6 (`listening on ws://[::1]:18789`), set `INTERNAL_GATEWAY_HOST=::1` in Railway Variables
+4. **Enable proxy debug** — set `OPENCLAW_PROXY_DEBUG=true` and check logs for `[proxy] WS upgrade` and `proxyReqWs fired`
 
 ### "disconnected (1008): pairing required"
 

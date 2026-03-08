@@ -200,6 +200,18 @@
       This maps to your Azure deployment (not the model name).
     </div>
 
+    <label>Embedding deployment (optional)</label>
+    <input id="azureEmbeddingDeployment" type="text" placeholder="text-embedding-3-small" />
+    <div class="muted" style="margin-top: 0.25rem">
+      For memory search. Falls back to chat deployment if empty.
+    </div>
+
+    <label>Embedding API Key Env Var (optional)</label>
+    <input id="azureEmbeddingApiKeyEnv" type="text" placeholder="AZURE_OPENAI_EMBEDDING_KEY" />
+    <div class="muted" style="margin-top: 0.25rem">
+      Azure may give a separate key for embeddings. Set this env var in Railway. Falls back to chat key if empty.
+    </div>
+
     <label>API version (optional)</label>
     <input id="azureApiVersion" type="text" placeholder="2024-02-15-preview" />
 
