@@ -493,7 +493,6 @@ function seedWorkspaceFromRepo() {
       const src = path.join(WORKSPACE_SEED_DIR, item);
       const dest = path.join(WORKSPACE_DIR, item);
       if (!fs.existsSync(src)) continue;
-      if (fs.existsSync(dest)) continue;
       const stat = fs.statSync(src);
       if (stat.isDirectory()) {
         if (fs.existsSync(dest)) {
@@ -502,6 +501,7 @@ function seedWorkspaceFromRepo() {
           fs.cpSync(src, dest, { recursive: true, force: false });
         }
       } else {
+        if (fs.existsSync(dest)) continue;
         fs.copyFileSync(src, dest, fs.constants.COPYFILE_EXCL);
       }
       debug(`[workspace] seeded ${item}`);
