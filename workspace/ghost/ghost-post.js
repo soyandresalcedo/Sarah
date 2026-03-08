@@ -1,6 +1,35 @@
 #!/usr/bin/env node
 import crypto from "node:crypto";
+import path from "node:path";
 import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
+
+function loadEnvFiles() {
+  const candidates = [
+    new URL("./.env", import.meta.url).pathname,
+    path.join(process.cwd(), ".env"),
+    "/data/workspace/.env",
+    "/data/workspace/research/.env",
+    "/data/workspace/ghost/.env",
+  ];
+  for (const p of candidates) {
+    try {
+      if (!existsSync(p)) continue;
+      const raw = readFileSync(p, "utf8");
+      let loaded = 0;
+      for (const line of raw.split(/\r?\n/)) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith("#")) continue;
+        const eq = trimmed.indexOf("=");
+        if (eq < 1) continue;
+        const k = trimmed.slice(0, eq).trim();
+        const v = trimmed.slice(eq + 1).trim().replace(/^"|"$/g, "");
+        if (!process.env[k]) { process.env[k] = v; loaded++; }
+      }
+      if (loaded > 0) console.error(`[ghost-post] loaded ${loaded} vars from ${p}`);
+    } catch { /* skip */ }
+  }
+}
+loadEnvFiles();
 
 function base64url(input) {
   return Buffer.from(input)
@@ -124,25 +153,11 @@ async function readStdin() {
 }
 
 async function main() {
-  let apiUrl = process.env.GHOST_API_URL?.trim();
-  let adminKey = process.env.GHOST_ADMIN_API_KEY?.trim();
+  const apiUrl = process.env.GHOST_API_URL?.trim();
+  const adminKey = process.env.GHOST_ADMIN_API_KEY?.trim();
   if (!apiUrl || !adminKey) {
-    try {
-      const envRaw = readFileSync(new URL("./.env", import.meta.url), "utf8");
-      for (const line of envRaw.split(/\r?\n/)) {
-        const trimmed = line.trim();
-        if (!trimmed || trimmed.startsWith("#")) continue;
-        const eq = trimmed.indexOf("=");
-        if (eq === -1) continue;
-        const k = trimmed.slice(0, eq).trim();
-        const v = trimmed.slice(eq + 1).trim().replace(/^"|"$/g, "");
-        if (!process.env[k]) process.env[k] = v;
-      }
-      apiUrl = apiUrl || process.env.GHOST_API_URL?.trim();
-      adminKey = adminKey || process.env.GHOST_ADMIN_API_KEY?.trim();
-    } catch {
-      // ignore
-    }
+    console.error(`[ghost-post] ENV check — GHOST_API_URL: ${apiUrl ? "set" : "MISSING"}, GHOST_ADMIN_API_KEY: ${adminKey ? "set" : "MISSING"}`);
+    console.error(`[ghost-post] cwd: ${process.cwd()}, script: ${import.meta.url}`);
   }
   if (!apiUrl) throw new Error("Falta GHOST_API_URL");
   if (!adminKey) throw new Error("Falta GHOST_ADMIN_API_KEY");

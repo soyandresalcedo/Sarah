@@ -555,35 +555,56 @@ function seedWorkspaceFromRepo() {
 
 seedWorkspaceFromRepo();
 
-// Sync relevant API keys from system env into workspace .env files
-// so agent scripts (serper-search.js, seo-gsc.js, ghost-post.js) can find them
+// Merge relevant API keys from system env into workspace .env files
+// Preserves existing keys that are not in the system env (e.g. GHOST_API_URL set manually)
 (function syncEnvToWorkspaces() {
   const ENV_KEYS = [
     "SERPER_API_KEY",
     "GHOST_API_URL", "GHOST_ADMIN_API_KEY", "GHOST_CONTENT_API_KEY",
     "OPENCLAW_SEO_API_KEY", "OPENCLAW_SEO_API_BASE", "OPENCLAW_GSC_SITE_URL",
   ];
-  const lines = [];
-  for (const k of ENV_KEYS) {
-    const v = process.env[k]?.trim();
-    if (v) lines.push(`${k}=${v}`);
-  }
-  if (lines.length === 0) return;
-  const content = lines.join("\n") + "\n";
   const dirs = [WORKSPACE_DIR];
   for (const sub of ["research", "ghost"]) {
     const d = path.join(WORKSPACE_DIR, sub);
     if (fs.existsSync(d)) dirs.push(d);
   }
+  let totalWritten = 0;
   for (const dir of dirs) {
     try {
       const envPath = path.join(dir, ".env");
+      const existing = new Map();
+      if (fs.existsSync(envPath)) {
+        const raw = fs.readFileSync(envPath, "utf8");
+        for (const line of raw.split(/\r?\n/)) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.startsWith("#")) continue;
+          const eq = trimmed.indexOf("=");
+          if (eq < 1) continue;
+          existing.set(trimmed.slice(0, eq).trim(), trimmed.slice(eq + 1).trim());
+        }
+      }
+      let changed = false;
+      for (const k of ENV_KEYS) {
+        const v = process.env[k]?.trim();
+        if (v && existing.get(k) !== v) {
+          existing.set(k, v);
+          changed = true;
+        }
+      }
+      if (!changed && existing.size > 0) continue;
+      if (existing.size === 0) continue;
+      const content = [...existing.entries()].map(([k, v]) => `${k}=${v}`).join("\n") + "\n";
       fs.writeFileSync(envPath, content, { encoding: "utf8", mode: 0o600 });
+      totalWritten++;
     } catch (err) {
       console.warn(`[env-sync] failed for ${dir}: ${err.message}`);
     }
   }
-  console.log(`[env-sync] wrote ${lines.length} keys to .env in ${dirs.length} workspaces`);
+  if (totalWritten > 0) {
+    console.log(`[env-sync] merged env keys into .env in ${totalWritten}/${dirs.length} workspaces`);
+  } else {
+    console.log(`[env-sync] no changes needed`);
+  }
 })();
 
 // Seed cron jobs from repo — overwrite if volume has legacy jobs

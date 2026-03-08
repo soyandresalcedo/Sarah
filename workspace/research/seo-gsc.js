@@ -1,19 +1,34 @@
 #!/usr/bin/env node
-import { readFileSync } from "node:fs";
+import path from "node:path";
+import { readFileSync, existsSync } from "node:fs";
 
-// Load .env fallback (same pattern as ghost-post.js)
-try {
-  const envRaw = readFileSync(new URL("./.env", import.meta.url), "utf8");
-  for (const line of envRaw.split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const eq = trimmed.indexOf("=");
-    if (eq < 1) continue;
-    const k = trimmed.slice(0, eq).trim();
-    const v = trimmed.slice(eq + 1).trim().replace(/^"|"$/g, "");
-    if (!process.env[k]) process.env[k] = v;
+function loadEnvFiles() {
+  const candidates = [
+    new URL("./.env", import.meta.url).pathname,
+    path.join(process.cwd(), ".env"),
+    "/data/workspace/.env",
+    "/data/workspace/research/.env",
+    "/data/workspace/ghost/.env",
+  ];
+  for (const p of candidates) {
+    try {
+      if (!existsSync(p)) continue;
+      const raw = readFileSync(p, "utf8");
+      let loaded = 0;
+      for (const line of raw.split(/\r?\n/)) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith("#")) continue;
+        const eq = trimmed.indexOf("=");
+        if (eq < 1) continue;
+        const k = trimmed.slice(0, eq).trim();
+        const v = trimmed.slice(eq + 1).trim().replace(/^"|"$/g, "");
+        if (!process.env[k]) { process.env[k] = v; loaded++; }
+      }
+      if (loaded > 0) console.error(`[seo-gsc] loaded ${loaded} vars from ${p}`);
+    } catch { /* skip */ }
   }
-} catch { /* no .env file, rely on system env */ }
+}
+loadEnvFiles();
 
 const DEFAULT_API_BASE = "http://localhost:8080";
 const DEFAULT_ENDPOINT = "summary";
