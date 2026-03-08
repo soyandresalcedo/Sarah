@@ -193,6 +193,11 @@ async function main() {
   }
   if (!html) throw new Error("Falta --html o contenido por stdin");
 
+  // Lossless HTML: wrap in Ghost HTML card so Lexical stores it as-is
+  if (!html.includes("<!--kg-card-begin: html-->")) {
+    html = `<!--kg-card-begin: html-->\n${html}\n<!--kg-card-end: html-->`;
+  }
+
   const token = signGhostJwt(adminKey);
   let targetId = postId || null;
   let updatedAt = null;
@@ -232,8 +237,32 @@ async function main() {
     ? new URL(`/ghost/api/admin/posts/${targetId}/`, apiUrl.replace(/\/+$/, ""))
     : new URL("/ghost/api/admin/posts/", apiUrl.replace(/\/+$/, ""));
   url.searchParams.set("source", "html");
+
+  console.error(`[ghost-post] ${method} ${url.pathname} — ${html.length} chars de HTML`);
+
   const json = await ghostFetch(url, token, { method, body: JSON.stringify(body) });
   const post = json?.posts?.[0];
+
+  const createdId = post?.id;
+  if (createdId) {
+    const verifyUrl = new URL(
+      `/ghost/api/admin/posts/${createdId}/`,
+      apiUrl.replace(/\/+$/, ""),
+    );
+    verifyUrl.searchParams.set("formats", "html");
+    const verify = await ghostFetch(verifyUrl, token);
+    const savedHtml = verify?.posts?.[0]?.html || "";
+    if (savedHtml.trim().length < 20) {
+      console.error(
+        `[ghost-post] WARN: post creado pero HTML parece vacío (${savedHtml.length} chars)`,
+      );
+    } else {
+      console.error(
+        `[ghost-post] OK: post verificado con ${savedHtml.length} chars de HTML`,
+      );
+    }
+  }
+
   const out = post?.url || post?.id || "OK";
   process.stdout.write(`${out}\n`);
 }
