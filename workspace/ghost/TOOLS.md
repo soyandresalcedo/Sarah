@@ -24,3 +24,8 @@ No confirmes publicación sin el output real del script.
 - 10:00 `ghost-post-10am` (investigativo financiero)
 - 14:00 `ghost-post-2pm` (investigativo estrategico)
 - 18:00 `ghost-post-6pm` (investigativo operativo)
+
+## Ejecucion canonica
+- Ejecutar siempre desde `cd /data/workspace`.
+- Usar scripts canónicos en raíz: `./ghost-post.js`, `./ghost-analysis.js`, `./serper-search.js`, `./seo-gsc.js`.
+- Evitar copias en `workspace/ghost/*.js` salvo compatibilidad legacy.

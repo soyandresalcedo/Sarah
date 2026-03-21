@@ -66,6 +66,36 @@ function getArg(flag) {
   return process.argv[idx + 1] ?? null;
 }
 
+function printHelp() {
+  process.stdout.write(
+    [
+      "Uso: node ./ghost-post.js --title \"Titulo\" [opciones]",
+      "",
+      "Opciones:",
+      "  --title            Titulo del post (requerido)",
+      "  --html             HTML inline",
+      "  --html-file        Ruta a archivo HTML",
+      "  --status           draft|published (default: draft)",
+      "  --tags             CSV de tags",
+      "  --excerpt          Extracto",
+      "  --feature-image    URL de imagen destacada",
+      "  --slug             Slug del post",
+      "  --meta-title       Meta title",
+      "  --meta-description Meta description",
+      "  --canonical        URL canonica",
+      "  --id               ID interno del post para update",
+      "  --update-title     Busca draft por titulo y actualiza",
+      "  --update-latest    Actualiza el draft mas reciente",
+      "  --help, -h         Muestra esta ayuda",
+      "",
+      "Env:",
+      "  GHOST_API_URL",
+      "  GHOST_ADMIN_API_KEY",
+      "",
+    ].join("\n"),
+  );
+}
+
 function parseTags(value) {
   if (!value) return undefined;
   const tags = value
@@ -153,6 +183,11 @@ async function readStdin() {
 }
 
 async function main() {
+  if (process.argv.includes("--help") || process.argv.includes("-h")) {
+    printHelp();
+    return;
+  }
+
   const apiUrl = process.env.GHOST_API_URL?.trim();
   const adminKey = process.env.GHOST_ADMIN_API_KEY?.trim();
   if (!apiUrl || !adminKey) {

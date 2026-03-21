@@ -57,6 +57,14 @@ const SETUP_PASSWORD = process.env.SETUP_PASSWORD?.trim();
 // Debug logging helper
 const DEBUG = process.env.OPENCLAW_TEMPLATE_DEBUG?.toLowerCase() === "true";
 const PROXY_DEBUG = process.env.OPENCLAW_PROXY_DEBUG?.toLowerCase() === "true";
+const IS_RAILWAY_ENV =
+  !!process.env.RAILWAY_PROJECT_ID ||
+  !!process.env.RAILWAY_ENVIRONMENT ||
+  !!process.env.RAILWAY_STATIC_URL;
+const SETUP_ALLOW_INSECURE_CONTROL_UI_AUTH_DEFAULT =
+  process.env.OPENCLAW_SETUP_ALLOW_INSECURE_CONTROL_UI_AUTH?.toLowerCase() ===
+  "true" ||
+  IS_RAILWAY_ENV;
 function debug(...args) {
   if (DEBUG) console.log(...args);
 }
@@ -64,6 +72,14 @@ function debug(...args) {
 function redactTokenInUrl(url) {
   if (!url) return url;
   return String(url).replace(/([?&]token=)[^&]*/g, "$1***");
+}
+
+function parseBooleanInput(value, fallback = false) {
+  if (value == null) return fallback;
+  const normalized = String(value).trim().toLowerCase();
+  if (["true", "1", "yes", "on"].includes(normalized)) return true;
+  if (["false", "0", "no", "off"].includes(normalized)) return false;
+  return fallback;
 }
 
 // ========== SEO / GSC INTEGRATION ==========
@@ -2137,11 +2153,28 @@ app.post("/setup/api/run", requireSetupAuth, async (req, res) => {
           String(INTERNAL_GATEWAY_PORT),
         ]),
       );
-      // Allow Control UI access without device pairing (fixes error 1008: pairing required)
+      const allowInsecureControlUiAuth = parseBooleanInput(
+        payload.allowInsecureControlUiAuth,
+        SETUP_ALLOW_INSECURE_CONTROL_UI_AUTH_DEFAULT,
+      );
+
+      // Secure by default: only allow insecure Control UI auth when explicitly requested.
       await runCmd(
         OPENCLAW_NODE,
-        clawArgs(["config", "set", "gateway.controlUi.allowInsecureAuth", "true"]),
+        clawArgs([
+          "config",
+          "set",
+          "gateway.controlUi.allowInsecureAuth",
+          String(allowInsecureControlUiAuth),
+        ]),
       );
+      if (allowInsecureControlUiAuth) {
+        extra +=
+          "\n[security] WARNING: gateway.controlUi.allowInsecureAuth=true (not recommended for production)\n";
+      } else {
+        extra +=
+          "\n[security] gateway.controlUi.allowInsecureAuth=false (secure default)\n";
+      }
 
       // Configure trusted proxies for gateway (based on PR #12 by ArtificialSight)
       // - Auto-detects Railway environment via env vars
@@ -2487,6 +2520,34 @@ app.post("/setup/api/run", requireSetupAuth, async (req, res) => {
 
       // Apply changes immediately.
       await restartGateway();
+
+      // Post-restart reachability check with quick retries.
+      let reachableAfterSetup = false;
+      for (let i = 0; i < 3; i++) {
+        await sleep(1500);
+        reachableAfterSetup = await probeGateway();
+        if (reachableAfterSetup) break;
+      }
+      extra += `\n[gateway] reachable after setup: ${reachableAfterSetup}\n`;
+
+      // If gateway is still unreachable, provide pairing diagnostics for quick recovery.
+      if (!reachableAfterSetup) {
+        const devices = await runCmd(
+          OPENCLAW_NODE,
+          clawArgs(["devices", "list"]),
+          { timeoutMs: 15000 },
+        );
+        const pendingRequestIds = extractDeviceRequestIds(devices.output);
+        extra += `\n[pairing] devices.list exit=${devices.code}\n${devices.output || "(no output)"}\n`;
+        if (pendingRequestIds.length > 0) {
+          extra += `\n[pairing] pending requestIds: ${pendingRequestIds.join(", ")}\n`;
+          extra +=
+            "[pairing] Use /setup Device Pairing Helper or openclaw.devices.approve in Debug Console.\n";
+        } else {
+          extra +=
+            "[pairing] No pending requestId detected. Check token/config parity and run openclaw doctor.\n";
+        }
+      }
     }
 
     return res.status(ok ? 200 : 500).json({

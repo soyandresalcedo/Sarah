@@ -10,11 +10,11 @@
         "expr": "0 7 * * *",
         "tz": "America/Bogota"
       },
-      "sessionTarget": "isolated",
+      "sessionTarget": "main",
       "wakeMode": "now",
       "payload": {
-        "kind": "agentTurn",
-        "message": "Tarea autónoma — ejecuta todo sin pedir confirmación.\n\nETAPA 1 — Identificar keyword oportunidad:\nEjecuta: node ./seo-gsc.js --endpoint queries --rowLimit 500 --includeInsights true\nDel JSON, busca en insights.positions8to20 la keyword con más impressions.\nSi no hay datos de GSC, usa keyword \"education technology Latin America\" y salta a Etapa 3.\n\nETAPA 2 — Verificar duplicados:\nEjecuta: node ./ghost-analysis.js\nRevisa posts[].title. Si ya hay un artículo sobre esa keyword, elige la siguiente keyword de positions8to20.\n\nETAPA 3 — Crear artículo SEO:\nUsa la skill ghost-writer, Pipeline A (Investigar + Crear).\nKeyword objetivo: la seleccionada.\nIdioma: español.\nEnfoque: artículo SEO de 1200-1800 palabras optimizado para la keyword.\nAudiencia: líderes de educación superior LatAm (CFO, VP Enrollment, CTO).\nTags: incluir keyword como tag + 2-3 tags relevantes.\nStatus: draft.\n\nETAPA 4 — Reportar:\nFormato: Keyword SEO: [keyword] | Posición actual: [pos] | Impressions: [imp]\nDraft: [URL]\nMeta: «meta title»"
+        "kind": "systemEvent",
+        "text": "Tarea autónoma — ejecuta todo sin pedir confirmación.\n\nETAPA 1 — Identificar keyword oportunidad:\nEjecuta: node ./seo-gsc.js --endpoint queries --rowLimit 500 --includeInsights true\nDel JSON, busca en insights.positions8to20 la keyword con más impressions.\nSi no hay datos de GSC, usa keyword \"education technology Latin America\" y salta a Etapa 3.\n\nETAPA 2 — Verificar duplicados:\nEjecuta: node ./ghost-analysis.js\nRevisa posts[].title. Si ya hay un artículo sobre esa keyword, elige la siguiente keyword de positions8to20.\n\nETAPA 3 — Crear artículo SEO:\nUsa la skill ghost-writer, Pipeline A (Investigar + Crear).\nKeyword objetivo: la seleccionada.\nIdioma: español.\nEnfoque: artículo SEO de 1200-1800 palabras optimizado para la keyword.\nAudiencia: líderes de educación superior LatAm (CFO, VP Enrollment, CTO).\nTags: incluir keyword como tag + 2-3 tags relevantes.\nStatus: draft.\n\nETAPA 4 — Reportar:\nFormato: Keyword SEO: [keyword] | Posición actual: [pos] | Impressions: [imp]\nDraft: [URL]\nMeta: «meta title»"
       },
       "delivery": {
         "mode": "announce",
@@ -32,11 +32,11 @@
         "expr": "30 12 * * *",
         "tz": "America/Bogota"
       },
-      "sessionTarget": "isolated",
+      "sessionTarget": "main",
       "wakeMode": "now",
       "payload": {
-        "kind": "agentTurn",
-        "message": "Tarea autónoma — ejecuta todo sin pedir confirmación.\n\nETAPA 1 — Analizar posts publicados:\nEjecuta: node ./ghost-analysis.js\nGuarda la lista de topKeywords y posts[].title en memoria.\n\nETAPA 2 — Obtener queries de GSC:\nEjecuta: node ./seo-gsc.js --endpoint queries --rowLimit 300\nCompara las queries de GSC (por impressions) contra topKeywords de Ghost.\nIdentifica la query con más impressions que NO tiene un artículo publicado aún.\nSi todas están cubiertas, busca la query con mayor diferencia de ángulo.\n\nETAPA 3 — Crear artículo:\nUsa la skill ghost-writer, Pipeline A (Investigar + Crear).\nKeyword objetivo: el gap detectado.\nIdioma: español.\nEnfoque: artículo de 1200-1800 palabras que llene ese gap de contenido.\nAudiencia: líderes de educación superior LatAm.\nTags: keyword + 2-3 tags relevantes.\nStatus: draft.\n\nETAPA 4 — Reportar:\nFormato: Gap detectado: [query] | Impressions: [imp] | Posts existentes sobre tema: 0\nDraft: [URL]\nMeta: «meta title»"
+        "kind": "systemEvent",
+        "text": "Tarea autónoma — ejecuta todo sin pedir confirmación.\n\nETAPA 1 — Analizar posts publicados:\nEjecuta: node ./ghost-analysis.js\nGuarda la lista de topKeywords y posts[].title en memoria.\n\nETAPA 2 — Obtener queries de GSC:\nEjecuta: node ./seo-gsc.js --endpoint queries --rowLimit 300\nCompara las queries de GSC (por impressions) contra topKeywords de Ghost.\nIdentifica la query con más impressions que NO tiene un artículo publicado aún.\nSi todas están cubiertas, busca la query con mayor diferencia de ángulo.\n\nETAPA 3 — Crear artículo:\nUsa la skill ghost-writer, Pipeline A (Investigar + Crear).\nKeyword objetivo: el gap detectado.\nIdioma: español.\nEnfoque: artículo de 1200-1800 palabras que llene ese gap de contenido.\nAudiencia: líderes de educación superior LatAm.\nTags: keyword + 2-3 tags relevantes.\nStatus: draft.\n\nETAPA 4 — Reportar:\nFormato: Gap detectado: [query] | Impressions: [imp] | Posts existentes sobre tema: 0\nDraft: [URL]\nMeta: «meta title»"
       },
       "delivery": {
         "mode": "announce",
@@ -54,11 +54,11 @@
         "expr": "30 17 * * *",
         "tz": "America/Bogota"
       },
-      "sessionTarget": "isolated",
+      "sessionTarget": "main",
       "wakeMode": "now",
       "payload": {
-        "kind": "agentTurn",
-        "message": "Tarea autónoma — ejecuta todo sin pedir confirmación.\n\nETAPA 1 — Detectar tendencias:\nEjecuta: node ./seo-gsc.js --endpoint summary --compare previous\nRevisa los deltas de clicks e impressions generales.\nLuego ejecuta: node ./seo-gsc.js --endpoint queries --rowLimit 200 --days 7\nCompara con: node ./seo-gsc.js --endpoint queries --rowLimit 200 --days 28\nIdentifica la query con MAYOR crecimiento en clicks o impressions (la que más subió en la última semana vs el mes).\nSi no hay datos claros, busca noticias recientes de educación superior con serper-search.\n\nETAPA 2 — Crear artículo de tendencia:\nUsa la skill ghost-writer, Pipeline A con --type news (Investigar noticias + Crear).\nKeyword objetivo: la query trending detectada.\nIdioma: español.\nEnfoque: artículo de 1200-1800 palabras capitalizando la tendencia actual.\nAudiencia: líderes de educación superior LatAm.\nTags: keyword + trending + 1-2 tags relevantes.\nStatus: draft.\n\nETAPA 3 — Reportar:\nFormato: Tendencia: [query] | Crecimiento: +[delta]% clicks/impressions\nDraft: [URL]\nMeta: «meta title»"
+        "kind": "systemEvent",
+        "text": "Tarea autónoma — ejecuta todo sin pedir confirmación.\n\nETAPA 1 — Detectar tendencias:\nEjecuta: node ./seo-gsc.js --endpoint summary --compare previous\nRevisa los deltas de clicks e impressions generales.\nLuego ejecuta: node ./seo-gsc.js --endpoint queries --rowLimit 200 --days 7\nCompara con: node ./seo-gsc.js --endpoint queries --rowLimit 200 --days 28\nIdentifica la query con MAYOR crecimiento en clicks o impressions (la que más subió en la última semana vs el mes).\nSi no hay datos claros, busca noticias recientes de educación superior con serper-search.\n\nETAPA 2 — Crear artículo de tendencia:\nUsa la skill ghost-writer, Pipeline A con --type news (Investigar noticias + Crear).\nKeyword objetivo: la query trending detectada.\nIdioma: español.\nEnfoque: artículo de 1200-1800 palabras capitalizando la tendencia actual.\nAudiencia: líderes de educación superior LatAm.\nTags: keyword + trending + 1-2 tags relevantes.\nStatus: draft.\n\nETAPA 3 — Reportar:\nFormato: Tendencia: [query] | Crecimiento: +[delta]% clicks/impressions\nDraft: [URL]\nMeta: «meta title»"
       },
       "delivery": {
         "mode": "announce",

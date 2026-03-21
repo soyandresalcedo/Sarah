@@ -17,7 +17,7 @@ resultados como datos estructurados compactos, no parrafos largos.
 
 ## Herramienta
 
-Un solo script: `node ./seo-gsc.js [flags]`
+Un solo script canónico: `cd /data/workspace && node ./seo-gsc.js [flags]`
 
 ### Flags disponibles
 
@@ -74,7 +74,7 @@ Si el pedido es vago ("¿cómo va el SEO?"), ejecuta **Salud** + **Oportunidades
 Visión general del sitio con comparación período anterior.
 
 ```bash
-node ./seo-gsc.js --endpoint summary --compare previous
+cd /data/workspace && node ./seo-gsc.js --endpoint summary --compare previous
 ```
 
 Entrega:
@@ -87,12 +87,12 @@ Entrega:
 Dónde rankean las queries por mercado geográfico.
 
 ```bash
-node ./seo-gsc.js --dimensions query,country --rowLimit 500
+cd /data/workspace && node ./seo-gsc.js --dimensions query,country --rowLimit 500
 ```
 
 Para un país específico:
 ```bash
-node ./seo-gsc.js --dimensions query --filterDimension country --filterOperator equals --filterExpression col --rowLimit 200
+cd /data/workspace && node ./seo-gsc.js --dimensions query --filterDimension country --filterOperator equals --filterExpression col --rowLimit 200
 ```
 
 Entrega:
@@ -105,7 +105,7 @@ Entrega:
 Cómo se mueve una query o grupo de queries en el tiempo.
 
 ```bash
-node ./seo-gsc.js --dimensions query,date --days 90 --filterDimension query --filterOperator contains --filterExpression "enrollment" --rowLimit 1000
+cd /data/workspace && node ./seo-gsc.js --dimensions query,date --days 90 --filterDimension query --filterOperator contains --filterExpression "enrollment" --rowLimit 1000
 ```
 
 Entrega:
@@ -118,7 +118,7 @@ Entrega:
 Queries con alto potencial de mejora.
 
 ```bash
-node ./seo-gsc.js --endpoint queries --rowLimit 500 --includeInsights true
+cd /data/workspace && node ./seo-gsc.js --endpoint queries --rowLimit 500 --includeInsights true
 ```
 
 Del JSON de `insights`, extrae:
@@ -136,7 +136,7 @@ Entrega tabla compacta:
 Diferencias entre móvil y desktop.
 
 ```bash
-node ./seo-gsc.js --dimensions query,device --rowLimit 300
+cd /data/workspace && node ./seo-gsc.js --dimensions query,device --rowLimit 300
 ```
 
 Entrega:

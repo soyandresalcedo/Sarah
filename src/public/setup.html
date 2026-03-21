@@ -237,6 +237,13 @@
 
   <div class="card">
     <h2>3) Run onboarding</h2>
+    <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+      <input id="allowInsecureControlUiAuth" type="checkbox" />
+      Allow insecure Control UI auth (not recommended for production)
+    </label>
+    <p class="muted" style="margin-top: 0;">
+      Keep unchecked unless you explicitly need legacy behavior for troubleshooting.
+    </p>
     <button id="run">Run setup</button>
     <button id="pairingApprove" class="secondary-button">Approve pairing</button>
     <button id="reset" class="tertiary-button">Reset setup</button>

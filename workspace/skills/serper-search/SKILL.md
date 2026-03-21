@@ -17,9 +17,9 @@ Obtener resultados reales (web o noticias) desde Serper y devolver fuentes con e
 
 ## Flujo
 1) Confirma el objetivo en 1 línea.
-2) Ejecuta el script:
-   - **Web**: `node ../../research/serper-search.js --type search --query "<consulta>" --num 6 --country "co" --language "es"`
-   - **News**: `node ../../research/serper-search.js --type news --query "<consulta>" --num 6 --country "co" --language "es"`
+2) Ejecuta el script (convención canónica):
+   - **Web**: `cd /data/workspace && node ./serper-search.js --type search --query "<consulta>" --num 6 --country "co" --language "es"`
+   - **News**: `cd /data/workspace && node ./serper-search.js --type news --query "<consulta>" --num 6 --country "co" --language "es"`
 3) Resume 3-6 bullets y entrega links.
 
 ## Variables requeridas

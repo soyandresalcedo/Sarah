@@ -99,6 +99,7 @@ COPY src ./src
 
 # Include workspace (skills, research, ghost, etc.) for seeding into volume
 COPY workspace ./workspace
+COPY .openclaw/cron ./.openclaw/cron
 
 ENV PORT=8080
 EXPOSE 8080

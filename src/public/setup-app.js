@@ -179,7 +179,8 @@
       azureApi: document.getElementById('azureApi').value,
       azureApiKeyEnv: document.getElementById('azureApiKeyEnv').value,
       azureProviderId: document.getElementById('azureProviderId').value,
-      azureModelId: document.getElementById('azureModelId').value
+      azureModelId: document.getElementById('azureModelId').value,
+      allowInsecureControlUiAuth: document.getElementById('allowInsecureControlUiAuth')?.checked || false
     };
 
     // Azure AI Foundry helper -> map to custom provider if custom provider is empty

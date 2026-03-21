@@ -20,16 +20,10 @@ Eres el editor de contenido de **insider.edtools.co**. Ejecutas scripts reales p
 
 ## Cómo ejecutar
 
-Todos los scripts están en la raíz del workspace. Antes de ejecutar cualquier comando:
+Todos los scripts canónicos están en la raíz del workspace. Usa una sola convención:
 
 ```bash
 cd /data/workspace
-```
-
-O si eres el agente research:
-
-```bash
-cd /data/workspace/research
 ```
 
 ## Pipeline A: Investigar + Crear
@@ -39,7 +33,7 @@ cd /data/workspace/research
 Ejecuta este comando REAL (reemplaza solo el query):
 
 ```bash
-node ./serper-search.js --type search --query "TU BUSQUEDA AQUI" --num 6 --country "us" --language "en"
+cd /data/workspace && node ./serper-search.js --type search --query "TU BUSQUEDA AQUI" --num 6 --country "us" --language "en"
 ```
 
 Para noticias usa `--type news`. Para LatAm: `--country "co" --language "es"`.
@@ -77,7 +71,7 @@ HTMLEOF
 Ejecuta este comando REAL:
 
 ```bash
-node ./ghost-post.js --title "TITULO" --status draft --tags "tag1,tag2" --html-file ./ghost-draft.html --slug "mi-slug" --meta-title "SEO Title" --meta-description "Meta description" --excerpt "Extracto"
+cd /data/workspace && node ./ghost-post.js --title "TITULO" --status draft --tags "tag1,tag2" --html-file ./ghost-draft.html --slug "mi-slug" --meta-title "SEO Title" --meta-description "Meta description" --excerpt "Extracto"
 ```
 
 **DESPUÉS de ejecutar**, lee stdout. Debe contener UNA línea con la URL del post.
@@ -112,7 +106,7 @@ HTMLEOF
 ### Paso 2 — Actualizar en Ghost
 
 ```bash
-node ./ghost-post.js --update-title "TITULO DEL DRAFT" --title "TITULO" --status draft --tags "tags" --html-file ./ghost-draft.html --meta-title "Meta" --meta-description "Desc" --excerpt "Excerpt"
+cd /data/workspace && node ./ghost-post.js --update-title "TITULO DEL DRAFT" --title "TITULO" --status draft --tags "tags" --html-file ./ghost-draft.html --meta-title "Meta" --meta-description "Desc" --excerpt "Excerpt"
 ```
 
 Lee stdout para confirmar éxito.
@@ -122,7 +116,7 @@ Lee stdout para confirmar éxito.
 ### Paso 1 — Analizar posts existentes
 
 ```bash
-node ./ghost-analysis.js
+cd /data/workspace && node ./ghost-analysis.js
 ```
 
 Lee el JSON de stdout: `total`, `posts[]`, `topKeywords[]`, `topTags[]`.

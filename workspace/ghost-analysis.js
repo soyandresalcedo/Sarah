@@ -33,6 +33,25 @@ function getArg(flag) {
   return process.argv[idx + 1] ?? null;
 }
 
+function printHelp() {
+  process.stdout.write(
+    [
+      "Uso: node ./ghost-analysis.js [opciones]",
+      "",
+      "Opciones:",
+      "  --api-url          URL de Ghost (override env)",
+      "  --content-key      Content API key (override env)",
+      "  --limit            Posts por pagina (default: 100)",
+      "  --help, -h         Muestra esta ayuda",
+      "",
+      "Env:",
+      "  GHOST_API_URL",
+      "  GHOST_CONTENT_API_KEY",
+      "",
+    ].join("\n"),
+  );
+}
+
 async function fetchPage(apiUrl, key, page, limit) {
   const url = new URL("/ghost/api/content/posts/", apiUrl.replace(/\/+$/, ""));
   url.searchParams.set("key", key);
@@ -49,6 +68,11 @@ async function fetchPage(apiUrl, key, page, limit) {
 }
 
 async function main() {
+  if (process.argv.includes("--help") || process.argv.includes("-h")) {
+    printHelp();
+    return;
+  }
+
   let apiUrl = (getArg("--api-url") || process.env.GHOST_API_URL || "").trim();
   let key = (getArg("--content-key") || process.env.GHOST_CONTENT_API_KEY || "").trim();
   if ((!apiUrl || !key) && !getArg("--api-url") && !getArg("--content-key")) {

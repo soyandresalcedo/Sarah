@@ -15,9 +15,9 @@ Analizar posts publicados en Ghost usando la Content API y proponer temas nuevos
 
 ## Flujo
 1) Ejecuta:
-   - `node ../../ghost-analysis.js`
+   - `cd /data/workspace && node ./ghost-analysis.js`
    - Si falta env, usa:
-     `node ../../ghost-analysis.js --api-url "https://TU_URL" --content-key "TU_KEY"`
+     `cd /data/workspace && node ./ghost-analysis.js --api-url "https://TU_URL" --content-key "TU_KEY"`
 2) Resume:
    - listado de títulos, tags y fechas (puedes resumir si son muchos)
    - keywords dominantes (top 10)

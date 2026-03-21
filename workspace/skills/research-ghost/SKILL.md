@@ -21,7 +21,7 @@ Buscar fuentes reales y generar un draft en Ghost con HTML listo y citas.
 ## Flujo
 1) Resume el pedido en 1 línea (tema, tono, longitud).
 2) Ejecuta búsqueda:
-   - `node ../../research/serper-search.js --type news --query "<consulta>" --num 6 --country "co" --language "es"`
+   - `cd /data/workspace && node ./serper-search.js --type news --query "<consulta>" --num 6 --country "co" --language "es"`
 3) Genera HTML con:
    - H1 + 3-6 secciones
    - bullets con datos clave
@@ -29,7 +29,7 @@ Buscar fuentes reales y generar un draft en Ghost con HTML listo y citas.
 4) Guarda HTML:
    - `printf "%s" "<HTML>" > ghost-draft.html`
 5) Publica draft en Ghost:
-   - `node ../../ghost-post.js --title "<titulo>" --status draft --tags "tag1,tag2" --html-file ./ghost-draft.html --meta-title "<meta>" --meta-description "<meta_desc>" --excerpt "<excerpt>"`
+   - `cd /data/workspace && node ./ghost-post.js --title "<titulo>" --status draft --tags "tag1,tag2" --html-file ./ghost-draft.html --meta-title "<meta>" --meta-description "<meta_desc>" --excerpt "<excerpt>"`
 6) Devuelve link/id del post.
 
 ## Variables requeridas

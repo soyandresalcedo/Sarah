@@ -26,9 +26,9 @@ Crear contenido en Ghost a partir de palabras clave y **dejarlo en draft automá
 2) Genera el contenido en HTML.
 3) Guarda el HTML en un archivo temporal en el workspace:
    - `printf "%s" "<HTML>" > ghost-draft.html`
-4) Ejecuta el script:
-   - **Si es un draft nuevo**: `node ./ghost-post.js --title "<titulo>" --status draft --tags "tag1,tag2" --html-file ./ghost-draft.html --meta-title "<meta>" --meta-description "<meta_desc>" --excerpt "<excerpt>"`
-   - **Si es una edición de draft existente**: `node ./ghost-post.js --update-title "<titulo>" --title "<titulo>" --status draft --tags "tag1,tag2" --html-file ./ghost-draft.html --meta-title "<meta>" --meta-description "<meta_desc>" --excerpt "<excerpt>"`
+4) Ejecuta el script (convención canónica):
+   - **Si es un draft nuevo**: `cd /data/workspace && node ./ghost-post.js --title "<titulo>" --status draft --tags "tag1,tag2" --html-file ./ghost-draft.html --meta-title "<meta>" --meta-description "<meta_desc>" --excerpt "<excerpt>"`
+   - **Si es una edición de draft existente**: `cd /data/workspace && node ./ghost-post.js --update-title "<titulo>" --title "<titulo>" --status draft --tags "tag1,tag2" --html-file ./ghost-draft.html --meta-title "<meta>" --meta-description "<meta_desc>" --excerpt "<excerpt>"`
 4) Devuelve el link o id del post y ofrece ajustes.
 
 ## Variables requeridas (ya en el server)

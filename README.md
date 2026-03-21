@@ -48,6 +48,7 @@ This repo packages **OpenClaw** for Railway with a comprehensive **/setup** web 
 - **`OPENCLAW_TEMPLATE_DEBUG=true`** - Enable debug logging (logs sensitive tokens)
 - **`OPENCLAW_PROXY_DEBUG=true`** - Enable proxy/WebSocket debug logging (token redacted, for troubleshooting Control UI connectivity)
 - **`OPENCLAW_TRUST_PROXY_ALL=true`** - Trust all proxies (Railway auto-detected by default)
+- **`OPENCLAW_SETUP_ALLOW_INSECURE_CONTROL_UI_AUTH=true`** - Allow token-trusted Control UI auth without device pairing (recommended on Railway if chat operations hit `1008: pairing required`, e.g. `/subagents spawn`)
 
 ### SEO / GSC (optional)
 

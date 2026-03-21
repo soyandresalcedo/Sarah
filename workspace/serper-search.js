@@ -42,7 +42,32 @@ function toInt(value, fallback) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function printHelp() {
+  process.stdout.write(
+    [
+      "Uso: node ./serper-search.js --query \"texto\" [opciones]",
+      "",
+      "Opciones:",
+      "  --query, -q       Consulta de busqueda (requerido)",
+      "  --type            Tipo: search|news (default: search)",
+      "  --num             Numero de resultados 1-20 (default: 5)",
+      "  --country         Pais (default: us)",
+      "  --language        Idioma (default: en)",
+      "  --help, -h        Muestra esta ayuda",
+      "",
+      "Env:",
+      "  SERPER_API_KEY    API key requerida",
+      "",
+    ].join("\n"),
+  );
+}
+
 async function run() {
+  if (process.argv.includes("--help") || process.argv.includes("-h")) {
+    printHelp();
+    return;
+  }
+
   const query = getArg("--query", getArg("-q"));
   const type = (getArg("--type", "search") || "search").toLowerCase();
   const country = (getArg("--country", "us") || "us").toLowerCase();

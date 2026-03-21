@@ -47,7 +47,45 @@ function normalizeBool(value) {
   return null;
 }
 
+function printHelp() {
+  process.stdout.write(
+    [
+      "Uso: node ./seo-gsc.js [opciones]",
+      "",
+      "Opciones principales:",
+      "  --endpoint         summary|queries|pages (default: summary)",
+      "  --dimensions       CSV de dimensiones (usa endpoint explore)",
+      "  --days             Dias hacia atras",
+      "  --startDate        Fecha inicio YYYY-MM-DD",
+      "  --endDate          Fecha fin YYYY-MM-DD",
+      "  --compare          previous",
+      "  --rowLimit         Limite de filas",
+      "  --startRow         Offset",
+      "  --searchType       web|image|video|news",
+      "  --filterDimension  Dimension de filtro",
+      "  --filterOperator   equals|contains|notEquals|includingRegex|excludingRegex|notContains",
+      "  --filterExpression Valor del filtro",
+      "  --siteUrl          Sitio GSC",
+      "  --api-base         Base URL API SEO (default: http://localhost:8080)",
+      "  --api-key          API key SEO (override de env)",
+      "  --includeInsights  true|false",
+      "  --help, -h         Muestra esta ayuda",
+      "",
+      "Env:",
+      "  OPENCLAW_SEO_API_KEY (requerida)",
+      "  OPENCLAW_SEO_API_BASE (opcional)",
+      "  OPENCLAW_GSC_SITE_URL (opcional)",
+      "",
+    ].join("\n"),
+  );
+}
+
 async function main() {
+  if (process.argv.includes("--help") || process.argv.includes("-h")) {
+    printHelp();
+    return;
+  }
+
   const apiBase =
     (getArg("--api-base") || process.env.OPENCLAW_SEO_API_BASE || DEFAULT_API_BASE).trim();
   const apiKey =

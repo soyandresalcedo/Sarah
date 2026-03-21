@@ -1,40 +1,31 @@
-# TOOLS.md - Local Notes
+# TOOLS.md - OpenClaw Tools (Canónico)
 
-Skills define _how_ tools work. This file is for _your_ specifics — the stuff that's unique to your setup.
+## Scripts canónicos
 
-## What Goes Here
+La fuente de verdad de tools ejecutables está en `workspace/`:
 
-Things like:
+- `workspace/serper-search.js`
+- `workspace/seo-gsc.js`
+- `workspace/ghost-post.js`
+- `workspace/ghost-analysis.js`
 
-- Camera names and locations
-- SSH hosts and aliases
-- Preferred voices for TTS
-- Speaker/room names
-- Device nicknames
-- Anything environment-specific
+Convención recomendada en skills y jobs:
 
-## Examples
-
-```markdown
-### Cameras
-
-- living-room → Main area, 180° wide angle
-- front-door → Entrance, motion-triggered
-
-### SSH
-
-- home-server → 192.168.1.100, user: admin
-
-### TTS
-
-- Preferred voice: "Nova" (warm, slightly British)
-- Default speaker: Kitchen HomePod
+```bash
+cd /data/workspace
+node ./<script>.js [flags]
 ```
 
-## Why Separate?
+## Copias legacy (no canónicas)
 
-Skills are shared. Your setup is yours. Keeping them apart means you can update skills without losing your notes, and share skills without leaking your infrastructure.
+Existen copias en:
 
----
+- `workspace/research/*.js`
+- `workspace/ghost/*.js`
+- `.openclaw/workspace-research/*.js`
 
-Add whatever helps you do your job. This is your cheat sheet.
+Estas copias se consideran **compatibilidad/seed**. No deben usarse para cambios nuevos ni como referencia principal.
+
+## Documentación técnica
+
+Contrato CLI unificado: `workspace/TOOLS-CLI.md`.
