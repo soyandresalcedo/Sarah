@@ -6,7 +6,7 @@ description: Creates Ghost content from keywords and drafts posts automatically 
 # Ghost Content (Draft Auto-Create)
 
 ## Objetivo
-Crear contenido en Ghost a partir de palabras clave y **dejarlo en draft automáticamente** usando `ghost/ghost-post.js`.
+Crear contenido en Ghost a partir de palabras clave y **dejarlo en draft automáticamente** usando `ghost-post.js`.
 
 ## Reglas
 - Responde siempre en español.

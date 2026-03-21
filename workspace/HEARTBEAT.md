@@ -1,5 +1,5 @@
 # HEARTBEAT.md
 
-# Keep this file empty (or with only comments) to skip heartbeat API calls.
-
-# Add tasks below when you want the agent to check something periodically.
+- Quick scan: anything urgent?
+- If daytime, lightweight check-in if nothing else pending.
+- If blocked, note what's missing for next time.
